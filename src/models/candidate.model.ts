@@ -33,9 +33,9 @@ export interface ICandidate extends Document {
 const CandidateSchema = new Schema<ICandidate>(
   {
     firstName: { type: String, required: true },
-    lastName: { type: String, required: true },
+    lastName: { type: String, default: "" },
     email: { type: String, required: true, unique: true, index: true },
-    phone: { type: String, required: true },
+    phone: { type: String, default: "" },
     age: Number,
     gender: String,
     city: String,

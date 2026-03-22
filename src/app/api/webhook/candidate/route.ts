@@ -4,7 +4,7 @@ import { Candidate } from "@/models/candidate.model";
 import { createOrUpdateContact } from "@/lib/smoove";
 
 // Field ID mapping from Elementor form
-const FIELD_MAP = {
+const FIELD_MAP: Record<string, string> = {
   name: "firstName",
   field_9b4b058: "lastName",
   field_55a80fb: "age",
@@ -22,14 +22,97 @@ const FIELD_MAP = {
   field_bf77361: "motherTongue",
   field_c4db162: "additionalLanguages",
   field_a8e8524: "additionalInfo",
-} as const;
+};
 
-function parseWebhookPayload(body: Record<string, unknown>) {
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+async function parseBody(request: NextRequest): Promise<Record<string, unknown>> {
+  const contentType = request.headers.get("content-type") || "";
+
+  // Try JSON first
+  if (contentType.includes("application/json")) {
+    return request.json();
+  }
+
+  // Handle form-urlencoded
+  if (contentType.includes("application/x-www-form-urlencoded")) {
+    const text = await request.text();
+    const params = new URLSearchParams(text);
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of params.entries()) {
+      result[key] = value;
+    }
+    return result;
+  }
+
+  // Handle multipart/form-data
+  if (contentType.includes("multipart/form-data")) {
+    const formData = await request.formData();
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of formData.entries()) {
+      result[key] = typeof value === "string" ? value : value.name;
+    }
+    return result;
+  }
+
+  // Fallback: try JSON, then text
+  try {
+    return await request.json();
+  } catch {
+    const text = await request.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      // Try as URL-encoded
+      const params = new URLSearchParams(text);
+      const result: Record<string, unknown> = {};
+      for (const [key, value] of params.entries()) {
+        result[key] = value;
+      }
+      return result;
+    }
+  }
+}
+
+function extractFields(body: Record<string, unknown>): Record<string, string> {
+  const flat: Record<string, string> = {};
+
+  // Elementor nested format: { fields: { name: { id, value, type }, ... } }
+  // or { fields: { name: "value", ... } }
+  if (body.fields && typeof body.fields === "object") {
+    const fields = body.fields as Record<string, unknown>;
+    for (const [key, val] of Object.entries(fields)) {
+      if (val && typeof val === "object" && "value" in (val as Record<string, unknown>)) {
+        const fieldVal = (val as Record<string, unknown>).value;
+        const fieldId = (val as Record<string, unknown>).id as string || key;
+        flat[fieldId] = String(fieldVal ?? "");
+      } else {
+        flat[key] = String(val ?? "");
+      }
+    }
+    return flat;
+  }
+
+  // Flat format: { name: "value", field_xxx: "value" }
+  for (const [key, value] of Object.entries(body)) {
+    if (typeof value === "string" || typeof value === "number") {
+      flat[key] = String(value);
+    }
+  }
+
+  return flat;
+}
+
+function mapToCandidate(fields: Record<string, string>): Record<string, unknown> {
   const mapped: Record<string, unknown> = {};
 
-  for (const [key, value] of Object.entries(body)) {
-    const fieldName = FIELD_MAP[key as keyof typeof FIELD_MAP];
-    if (fieldName) {
+  for (const [key, value] of Object.entries(fields)) {
+    const fieldName = FIELD_MAP[key];
+    if (fieldName && value) {
       mapped[fieldName] = value;
     }
   }
@@ -54,15 +137,26 @@ function parseWebhookPayload(body: Record<string, unknown>) {
   return mapped;
 }
 
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: CORS_HEADERS });
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const parsed = parseWebhookPayload(body);
+    const body = await parseBody(request);
+    console.log("Webhook received body:", JSON.stringify(body).slice(0, 2000));
+
+    const fields = extractFields(body);
+    console.log("Extracted fields:", JSON.stringify(fields).slice(0, 2000));
+
+    const parsed = mapToCandidate(fields);
+    console.log("Mapped candidate:", JSON.stringify(parsed).slice(0, 1000));
 
     if (!parsed.email || !parsed.firstName) {
+      console.error("Missing required fields. Parsed:", parsed, "Raw body keys:", Object.keys(body));
       return NextResponse.json(
-        { success: false, error: "Missing required fields: email, firstName" },
-        { status: 400 }
+        { success: false, error: "Missing required fields: email, firstName", receivedKeys: Object.keys(body) },
+        { status: 400, headers: CORS_HEADERS }
       );
     }
 
@@ -95,25 +189,24 @@ export async function POST(request: NextRequest) {
         }
       }
     } catch {
-      // Don't fail the webhook if Smoove sync fails
       console.error("Smoove sync failed for candidate:", candidate.email);
     }
 
     return NextResponse.json(
       { success: true, data: { id: candidate._id } },
-      { status: 201 }
+      { status: 201, headers: CORS_HEADERS }
     );
   } catch (error) {
     if ((error as { code?: number }).code === 11000) {
       return NextResponse.json(
         { success: false, error: "Duplicate email" },
-        { status: 409 }
+        { status: 409, headers: CORS_HEADERS }
       );
     }
     console.error("Webhook candidate error:", error);
     return NextResponse.json(
       { success: false, error: "Internal server error" },
-      { status: 500 }
+      { status: 500, headers: CORS_HEADERS }
     );
   }
 }
