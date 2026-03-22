@@ -141,19 +141,36 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: CORS_HEADERS });
 }
 
+// DEBUG MODE - temporarily log raw data and always return 200
 export async function POST(request: NextRequest) {
   try {
     const body = await parseBody(request);
-    console.log("Webhook received body:", JSON.stringify(body).slice(0, 2000));
 
+    console.log("=== RAW WEBHOOK DATA FROM ELEMENTOR ===");
+    console.log(JSON.stringify(body, null, 2));
+    console.log("=======================================");
+
+    return NextResponse.json(
+      { success: true, message: "Debug mode: Data received successfully", rawData: body },
+      { status: 200, headers: CORS_HEADERS }
+    );
+  } catch (error) {
+    console.error("Webhook debug error:", error);
+    return NextResponse.json(
+      { success: false, error: "Internal server error" },
+      { status: 500, headers: CORS_HEADERS }
+    );
+  }
+}
+
+/* ORIGINAL POST - restore after debug
+export async function POST_ORIGINAL(request: NextRequest) {
+  try {
+    const body = await parseBody(request);
     const fields = extractFields(body);
-    console.log("Extracted fields:", JSON.stringify(fields).slice(0, 2000));
-
     const parsed = mapToCandidate(fields);
-    console.log("Mapped candidate:", JSON.stringify(parsed).slice(0, 1000));
 
     if (!parsed.email || !parsed.firstName) {
-      console.error("Missing required fields. Parsed:", parsed, "Raw body keys:", Object.keys(body));
       return NextResponse.json(
         { success: false, error: "Missing required fields: email, firstName", receivedKeys: Object.keys(body) },
         { status: 400, headers: CORS_HEADERS }
@@ -162,7 +179,6 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    // Upsert: update if email exists, create if not
     const candidate = await Candidate.findOneAndUpdate(
       { email: parsed.email },
       {
@@ -173,7 +189,6 @@ export async function POST(request: NextRequest) {
       { upsert: true, new: true, runValidators: true }
     );
 
-    // Sync to Smoove
     try {
       const smooveResult = await createOrUpdateContact({
         email: candidate.email,
@@ -210,3 +225,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+*/
