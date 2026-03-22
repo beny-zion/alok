@@ -21,6 +21,8 @@ export interface ICandidate extends Document {
   hasTraining?: boolean;
   trainingDetails?: string;
   additionalInfo?: string;
+  additionalNotes?: string;
+  additionalLanguagesText?: string;
   jobListingNumber?: number;
   cvUrl?: string;
   smooveContactId?: number;
@@ -52,6 +54,8 @@ const CandidateSchema = new Schema<ICandidate>(
     hasTraining: Boolean,
     trainingDetails: String,
     additionalInfo: String,
+    additionalNotes: String,
+    additionalLanguagesText: String,
     jobListingNumber: Number,
     cvUrl: String,
     smooveContactId: Number,

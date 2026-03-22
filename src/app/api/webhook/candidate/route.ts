@@ -3,7 +3,7 @@ import { connectDB } from "@/lib/db";
 import { Candidate } from "@/models/candidate.model";
 import { createOrUpdateContact } from "@/lib/smoove";
 
-// Field ID mapping from Elementor form
+// Corrected field ID mapping based on actual Elementor webhook data
 const FIELD_MAP: Record<string, string> = {
   name: "firstName",
   field_9b4b058: "lastName",
@@ -13,15 +13,22 @@ const FIELD_MAP: Record<string, string> = {
   field_8331320: "phone",
   field_6c16bcf: "email",
   field_7e1d48a: "gender",
-  field_760e340: "sectors",
+  jobscontainer: "sectors",
   mytext: "freeText",
   field_46111c1: "jobType",
   field_df823a4: "jobPermanence",
   field_b2c9d05: "salaryExpectation",
-  field_0ac03f5: "workExperience",
-  field_bf77361: "motherTongue",
-  field_c4db162: "additionalLanguages",
+  field_7871574: "hasWorkExperience",
+  field_1b96d15: "workExperienceDetails",
+  field_4a14834: "hasTraining",
+  field_e26a080: "trainingDetails",
+  field_f8db0be: "motherTongue",
+  field_85b2b5c: "additionalLanguages",
+  field_c4db162: "additionalLanguagesText",
   field_a8e8524: "additionalInfo",
+  field_fa08cf2: "additionalNotes",
+  field_6715ccd: "jobListingNumber",
+  field_47496c0: "cvUrl",
 };
 
 const CORS_HEADERS = {
@@ -30,81 +37,21 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-async function parseBody(request: NextRequest): Promise<Record<string, unknown>> {
-  const contentType = request.headers.get("content-type") || "";
+// Parse Elementor's bracket-notation URL-encoded data
+// e.g. "fields[name][value]" = "בני" → { name: "בני" }
+function extractFieldsFromBracketNotation(body: Record<string, unknown>): Record<string, string> {
+  const fields: Record<string, string> = {};
 
-  // Try JSON first
-  if (contentType.includes("application/json")) {
-    return request.json();
-  }
-
-  // Handle form-urlencoded
-  if (contentType.includes("application/x-www-form-urlencoded")) {
-    const text = await request.text();
-    const params = new URLSearchParams(text);
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of params.entries()) {
-      result[key] = value;
-    }
-    return result;
-  }
-
-  // Handle multipart/form-data
-  if (contentType.includes("multipart/form-data")) {
-    const formData = await request.formData();
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of formData.entries()) {
-      result[key] = typeof value === "string" ? value : value.name;
-    }
-    return result;
-  }
-
-  // Fallback: try JSON, then text
-  try {
-    return await request.json();
-  } catch {
-    const text = await request.text();
-    try {
-      return JSON.parse(text);
-    } catch {
-      // Try as URL-encoded
-      const params = new URLSearchParams(text);
-      const result: Record<string, unknown> = {};
-      for (const [key, value] of params.entries()) {
-        result[key] = value;
-      }
-      return result;
-    }
-  }
-}
-
-function extractFields(body: Record<string, unknown>): Record<string, string> {
-  const flat: Record<string, string> = {};
-
-  // Elementor nested format: { fields: { name: { id, value, type }, ... } }
-  // or { fields: { name: "value", ... } }
-  if (body.fields && typeof body.fields === "object") {
-    const fields = body.fields as Record<string, unknown>;
-    for (const [key, val] of Object.entries(fields)) {
-      if (val && typeof val === "object" && "value" in (val as Record<string, unknown>)) {
-        const fieldVal = (val as Record<string, unknown>).value;
-        const fieldId = (val as Record<string, unknown>).id as string || key;
-        flat[fieldId] = String(fieldVal ?? "");
-      } else {
-        flat[key] = String(val ?? "");
-      }
-    }
-    return flat;
-  }
-
-  // Flat format: { name: "value", field_xxx: "value" }
   for (const [key, value] of Object.entries(body)) {
-    if (typeof value === "string" || typeof value === "number") {
-      flat[key] = String(value);
+    // Match pattern: fields[FIELD_ID][value]
+    const match = key.match(/^fields\[([^\]]+)\]\[value\]$/);
+    if (match) {
+      const fieldId = match[1];
+      fields[fieldId] = String(value ?? "");
     }
   }
 
-  return flat;
+  return fields;
 }
 
 function mapToCandidate(fields: Record<string, string>): Record<string, unknown> {
@@ -117,22 +64,33 @@ function mapToCandidate(fields: Record<string, string>): Record<string, unknown>
     }
   }
 
-  // Parse sectors (comma-separated string to array)
+  // Parse sectors (comma-separated from checkbox)
   if (typeof mapped.sectors === "string") {
     mapped.sectors = mapped.sectors.split(",").map((s: string) => s.trim()).filter(Boolean);
   }
 
-  // Parse additional languages
+  // Parse additional languages (comma-separated from checkbox)
   if (typeof mapped.additionalLanguages === "string") {
-    mapped.additionalLanguages = mapped.additionalLanguages
-      .split(",")
-      .map((s: string) => s.trim())
-      .filter(Boolean);
+    mapped.additionalLanguages = mapped.additionalLanguages.split(",").map((s: string) => s.trim()).filter(Boolean);
   }
 
-  // Parse age and salary as numbers
+  // Parse motherTongue (comma-separated from checkbox, take first)
+  if (typeof mapped.motherTongue === "string") {
+    mapped.motherTongue = mapped.motherTongue.split(",")[0]?.trim() || mapped.motherTongue;
+  }
+
+  // Parse hasWorkExperience / hasTraining checkbox to boolean
+  if (mapped.hasWorkExperience) {
+    mapped.hasWorkExperience = String(mapped.hasWorkExperience).includes("כן");
+  }
+  if (mapped.hasTraining) {
+    mapped.hasTraining = String(mapped.hasTraining).includes("כן");
+  }
+
+  // Parse numbers
   if (mapped.age) mapped.age = Number(mapped.age) || undefined;
   if (mapped.salaryExpectation) mapped.salaryExpectation = Number(mapped.salaryExpectation) || undefined;
+  if (mapped.jobListingNumber) mapped.jobListingNumber = Number(mapped.jobListingNumber) || undefined;
 
   return mapped;
 }
@@ -141,44 +99,36 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: CORS_HEADERS });
 }
 
-// DEBUG MODE - temporarily log raw data and always return 200
 export async function POST(request: NextRequest) {
   try {
-    const body = await parseBody(request);
+    // Parse URL-encoded body
+    const text = await request.text();
+    const params = new URLSearchParams(text);
+    const body: Record<string, unknown> = {};
+    for (const [key, value] of params.entries()) {
+      body[key] = value;
+    }
 
-    console.log("=== RAW WEBHOOK DATA FROM ELEMENTOR ===");
-    console.log(JSON.stringify(body, null, 2));
-    console.log("=======================================");
+    console.log("Webhook received, content-type:", request.headers.get("content-type"));
 
-    return NextResponse.json(
-      { success: true, message: "Debug mode: Data received successfully", rawData: body },
-      { status: 200, headers: CORS_HEADERS }
-    );
-  } catch (error) {
-    console.error("Webhook debug error:", error);
-    return NextResponse.json(
-      { success: false, error: "Internal server error" },
-      { status: 500, headers: CORS_HEADERS }
-    );
-  }
-}
+    // Extract field values from bracket notation
+    const fields = extractFieldsFromBracketNotation(body);
+    console.log("Extracted fields:", JSON.stringify(fields).slice(0, 2000));
 
-/* ORIGINAL POST - restore after debug
-export async function POST_ORIGINAL(request: NextRequest) {
-  try {
-    const body = await parseBody(request);
-    const fields = extractFields(body);
     const parsed = mapToCandidate(fields);
+    console.log("Mapped candidate:", JSON.stringify(parsed).slice(0, 1000));
 
     if (!parsed.email || !parsed.firstName) {
+      console.error("Missing required fields. Parsed:", parsed);
       return NextResponse.json(
-        { success: false, error: "Missing required fields: email, firstName", receivedKeys: Object.keys(body) },
+        { success: false, error: "Missing required fields: email, firstName" },
         { status: 400, headers: CORS_HEADERS }
       );
     }
 
     await connectDB();
 
+    // Upsert: update if email exists, create if not
     const candidate = await Candidate.findOneAndUpdate(
       { email: parsed.email },
       {
@@ -189,6 +139,7 @@ export async function POST_ORIGINAL(request: NextRequest) {
       { upsert: true, new: true, runValidators: true }
     );
 
+    // Sync to Smoove
     try {
       const smooveResult = await createOrUpdateContact({
         email: candidate.email,
@@ -225,4 +176,3 @@ export async function POST_ORIGINAL(request: NextRequest) {
     );
   }
 }
-*/
