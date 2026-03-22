@@ -109,26 +109,20 @@ export async function POST(request: NextRequest) {
       body[key] = value;
     }
 
-    console.log("Webhook received, content-type:", request.headers.get("content-type"));
-
     // Extract field values from bracket notation
     const fields = extractFieldsFromBracketNotation(body);
-    console.log("Extracted fields:", JSON.stringify(fields).slice(0, 2000));
-
     const parsed = mapToCandidate(fields);
-    console.log("Mapped candidate:", JSON.stringify(parsed).slice(0, 1000));
 
     if (!parsed.email || !parsed.firstName) {
       console.error("Missing required fields. Parsed:", parsed);
       return NextResponse.json(
-        { success: false, error: "Missing required fields: email, firstName" },
-        { status: 400, headers: CORS_HEADERS }
+        { success: false, error: "Missing required fields" },
+        { status: 200, headers: CORS_HEADERS }
       );
     }
 
+    // Save to MongoDB
     await connectDB();
-
-    // Upsert: update if email exists, create if not
     const candidate = await Candidate.findOneAndUpdate(
       { email: parsed.email },
       {
@@ -138,41 +132,35 @@ export async function POST(request: NextRequest) {
       },
       { upsert: true, new: true, runValidators: true }
     );
+    console.log("Candidate saved:", candidate.email);
 
-    // Sync to Smoove
-    try {
-      const smooveResult = await createOrUpdateContact({
-        email: candidate.email,
-        firstName: candidate.firstName,
-        lastName: candidate.lastName,
-        cellPhone: candidate.phone,
-      });
-
-      if (smooveResult.success && smooveResult.data) {
-        const contactId = (smooveResult.data as Record<string, unknown>)?.contactId;
-        if (contactId) {
-          await Candidate.findByIdAndUpdate(candidate._id, { smooveContactId: contactId });
+    // Smoove sync - fire and forget, don't delay response
+    createOrUpdateContact({
+      email: candidate.email,
+      firstName: candidate.firstName,
+      lastName: candidate.lastName,
+      cellPhone: candidate.phone,
+    })
+      .then((res) => {
+        if (res.success && res.data) {
+          const contactId = (res.data as Record<string, unknown>)?.contactId;
+          if (contactId) {
+            Candidate.findByIdAndUpdate(candidate._id, { smooveContactId: contactId }).exec();
+          }
         }
-      }
-    } catch {
-      console.error("Smoove sync failed for candidate:", candidate.email);
-    }
+      })
+      .catch(() => console.error("Smoove sync failed:", candidate.email));
 
     return NextResponse.json(
-      { success: true, data: { id: candidate._id } },
-      { status: 201, headers: CORS_HEADERS }
+      { success: true },
+      { status: 200, headers: CORS_HEADERS }
     );
   } catch (error) {
-    if ((error as { code?: number }).code === 11000) {
-      return NextResponse.json(
-        { success: false, error: "Duplicate email" },
-        { status: 409, headers: CORS_HEADERS }
-      );
-    }
     console.error("Webhook candidate error:", error);
+    // Always return 200 to Elementor so it doesn't show error to user
     return NextResponse.json(
-      { success: false, error: "Internal server error" },
-      { status: 500, headers: CORS_HEADERS }
+      { success: false, error: "Internal error logged" },
+      { status: 200, headers: CORS_HEADERS }
     );
   }
 }
