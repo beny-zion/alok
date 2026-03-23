@@ -21,6 +21,7 @@ async function smooveRequest(
   body?: unknown
 ): Promise<SmooveResponse> {
   try {
+    console.log(`[Smoove] ${method} ${endpoint}`, body ? JSON.stringify(body).slice(0, 500) : "");
     const res = await fetch(`${SMOOVE_API_URL}${endpoint}`, {
       method,
       headers: {
@@ -30,10 +31,27 @@ async function smooveRequest(
       body: body ? JSON.stringify(body) : undefined,
     });
 
-    const data = await res.json();
+    // Some Smoove endpoints return empty body (e.g. BulkImport)
+    const text = await res.text();
+    let data: unknown = null;
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        // Non-JSON response — treat raw text as data
+        data = text;
+      }
+    }
 
     if (!res.ok) {
-      return { success: false, error: data?.message || `Smoove API error: ${res.status}` };
+      console.error(`[Smoove] ${method} ${endpoint} → ${res.status}`, JSON.stringify(data));
+      const errMsg =
+        (data && typeof data === "object" && "message" in data
+          ? (data as { message: string }).message
+          : null) ||
+        (typeof data === "string" ? data : null) ||
+        `Smoove API error: ${res.status}`;
+      return { success: false, error: errMsg };
     }
 
     return { success: true, data };
@@ -53,16 +71,18 @@ export async function createOrUpdateContact(contact: SmooveContact) {
   });
 }
 
-export async function bulkImportContacts(contacts: SmooveContact[]) {
+export async function bulkImportContacts(
+  contacts: SmooveContact[],
+  listId?: number
+) {
   return smooveRequest("/Contacts_BulkImport", "POST", {
-    contactsRequest: contacts.map((c) => ({
+    contacts: contacts.map((c) => ({
       email: c.email,
       firstName: c.firstName,
       lastName: c.lastName,
       cellPhone: c.cellPhone,
     })),
-    overrideNullableValue: false,
-    updateOnlyExistingContacts: false,
+    ...(listId != null && { lists_ToSubscribe: [listId] }),
   });
 }
 
@@ -72,16 +92,21 @@ export async function createCampaign(params: {
   listIds: number[];
   sendNow?: boolean;
 }) {
-  return smooveRequest("/Campaigns", "POST", {
+  const sendNow = params.sendNow ?? true;
+  const endpoint = sendNow ? "/Campaigns?sendNow=true" : "/Campaigns";
+  return smooveRequest(endpoint, "POST", {
     subject: params.subject,
     body: params.body,
     toListsById: params.listIds,
-    sendNow: params.sendNow ?? true,
   });
 }
 
 export async function getCampaignStats(campaignId: number) {
   return smooveRequest(`/Campaigns/${campaignId}/Statistics`);
+}
+
+export async function unsubscribeContact(contactId: number) {
+  return smooveRequest(`/Contacts/${contactId}/Unsubscribe`, "POST");
 }
 
 export async function getLists() {

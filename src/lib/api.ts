@@ -39,6 +39,7 @@ export interface CandidateData {
   additionalInfo?: string;
   jobListingNumber?: number;
   cvUrl?: string;
+  source?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -57,6 +58,24 @@ export function getCandidates(params: Record<string, string>) {
 
 export function deleteCandidate(id: string) {
   return apiRequest(`/api/candidates/${id}`, { method: "DELETE" });
+}
+
+export function getCandidate(id: string) {
+  return apiRequest<CandidateData>(`/api/candidates/${id}`);
+}
+
+export function createCandidate(data: Partial<CandidateData>) {
+  return apiRequest<CandidateData>("/api/candidates", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateCandidate(id: string, data: Partial<CandidateData>) {
+  return apiRequest<CandidateData>(`/api/candidates/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
 }
 
 // Campaigns
@@ -85,4 +104,36 @@ export function createCampaign(data: {
     method: "POST",
     body: JSON.stringify(data),
   });
+}
+
+// Jobs
+export interface JobListingData {
+  _id: string;
+  companyName: string;
+  companyPhone?: string;
+  sector?: string;
+  workArea?: string;
+  jobPermanence?: string;
+  salary?: number;
+  workDays?: string[];
+  workHours?: string;
+  contactName?: string;
+  contactLastName?: string;
+  contactGender?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  type?: string;
+  createdAt: string;
+}
+
+interface JobsListData {
+  jobs: JobListingData[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export function getJobs(params?: Record<string, string>) {
+  const query = params ? new URLSearchParams(params).toString() : "";
+  return apiRequest<JobsListData>(`/api/jobs${query ? `?${query}` : ""}`);
 }

@@ -12,7 +12,10 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PlusIcon } from "lucide-react";
 import { CandidateFilters } from "./candidate-filters";
+import { CandidateDetailDialog } from "./candidate-detail-dialog";
+import { CandidateFormDialog } from "./candidate-form-dialog";
 import { getCandidates, type CandidateData } from "@/lib/api";
 
 interface CandidateTableProps {
@@ -29,6 +32,11 @@ export function CandidateTable({ onSelectionChange }: CandidateTableProps) {
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+
+  // Dialog state
+  const [detailCandidate, setDetailCandidate] = useState<CandidateData | null>(null);
+  const [editCandidate, setEditCandidate] = useState<CandidateData | null>(null);
+  const [showAddDialog, setShowAddDialog] = useState(false);
 
   const fetchCandidates = useCallback(async () => {
     setLoading(true);
@@ -91,25 +99,33 @@ export function CandidateTable({ onSelectionChange }: CandidateTableProps) {
 
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <span>{total} מועמדים | {selectedIds.size} נבחרו</span>
+        <Button
+          size="sm"
+          className="bg-[#1B1464] hover:bg-[#0D0B3E] text-white"
+          onClick={() => setShowAddDialog(true)}
+        >
+          <PlusIcon className="size-4 ml-1" />
+          הוסף מועמד
+        </Button>
       </div>
 
-      <div className="border rounded-lg bg-card overflow-hidden">
+      <div className="border rounded-lg bg-card overflow-hidden shadow-sm">
         <Table>
           <TableHeader>
-            <TableRow>
+            <TableRow className="bg-[#1B1464]/5 hover:bg-[#1B1464]/5">
               <TableHead className="w-12">
                 <Checkbox
                   checked={candidates.length > 0 && selectedIds.size === candidates.length}
                   onCheckedChange={toggleSelectAll}
                 />
               </TableHead>
-              <TableHead>שם</TableHead>
-              <TableHead>אימייל</TableHead>
-              <TableHead>טלפון</TableHead>
-              <TableHead>עיר</TableHead>
-              <TableHead>תחומים</TableHead>
-              <TableHead>סוג משרה</TableHead>
-              <TableHead>תאריך</TableHead>
+              <TableHead className="font-semibold">שם</TableHead>
+              <TableHead className="font-semibold">אימייל</TableHead>
+              <TableHead className="font-semibold">טלפון</TableHead>
+              <TableHead className="font-semibold">עיר</TableHead>
+              <TableHead className="font-semibold">תחומים</TableHead>
+              <TableHead className="font-semibold">סוג משרה</TableHead>
+              <TableHead className="font-semibold">תאריך</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -126,40 +142,53 @@ export function CandidateTable({ onSelectionChange }: CandidateTableProps) {
                 </TableCell>
               </TableRow>
             ) : (
-              candidates.map((c) => (
-                <TableRow key={c._id} className="cursor-pointer hover:bg-muted/50">
-                  <TableCell>
-                    <Checkbox
-                      checked={selectedIds.has(c._id)}
-                      onCheckedChange={() => toggleSelect(c._id)}
-                    />
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    {c.firstName} {c.lastName}
-                  </TableCell>
-                  <TableCell className="text-sm">{c.email}</TableCell>
-                  <TableCell className="text-sm" dir="ltr">{c.phone}</TableCell>
-                  <TableCell className="text-sm">{c.city || "—"}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1 max-w-[200px]">
-                      {c.sectors?.slice(0, 2).map((s) => (
-                        <Badge key={s} variant="secondary" className="text-xs">
-                          {s}
-                        </Badge>
-                      ))}
-                      {c.sectors?.length > 2 && (
-                        <Badge variant="outline" className="text-xs">
-                          +{c.sectors.length - 2}
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm">{c.jobType || "—"}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {new Date(c.createdAt).toLocaleDateString("he-IL")}
-                  </TableCell>
-                </TableRow>
-              ))
+              candidates.map((c, index) => {
+                const isSelected = selectedIds.has(c._id);
+                return (
+                  <TableRow
+                    key={c._id}
+                    className={`cursor-pointer transition-colors ${
+                      isSelected
+                        ? "bg-[#2563EB]/5 hover:bg-[#2563EB]/10"
+                        : index % 2 === 1
+                          ? "bg-muted/20 hover:bg-muted/40"
+                          : "hover:bg-muted/30"
+                    }`}
+                    onClick={() => setDetailCandidate(c)}
+                  >
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => toggleSelect(c._id)}
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {c.firstName} {c.lastName}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{c.email}</TableCell>
+                    <TableCell className="text-sm" dir="ltr">{c.phone}</TableCell>
+                    <TableCell className="text-sm">{c.city || "—"}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1 max-w-[200px]">
+                        {c.sectors?.slice(0, 2).map((s) => (
+                          <Badge key={s} variant="secondary" className="text-xs">
+                            {s}
+                          </Badge>
+                        ))}
+                        {c.sectors?.length > 2 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{c.sectors.length - 2}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">{c.jobType || "—"}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {new Date(c.createdAt).toLocaleDateString("he-IL")}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
@@ -189,6 +218,34 @@ export function CandidateTable({ onSelectionChange }: CandidateTableProps) {
           </Button>
         </div>
       )}
+
+      {/* Detail Dialog */}
+      <CandidateDetailDialog
+        open={!!detailCandidate}
+        onOpenChange={(open) => { if (!open) setDetailCandidate(null); }}
+        candidate={detailCandidate}
+        onEdit={(c) => {
+          setDetailCandidate(null);
+          setEditCandidate(c);
+        }}
+        onDelete={() => {
+          setDetailCandidate(null);
+          fetchCandidates();
+        }}
+      />
+
+      {/* Add / Edit Form Dialog */}
+      <CandidateFormDialog
+        open={showAddDialog || !!editCandidate}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowAddDialog(false);
+            setEditCandidate(null);
+          }
+        }}
+        candidate={editCandidate}
+        onSuccess={fetchCandidates}
+      />
     </div>
   );
 }

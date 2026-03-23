@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db";
 import { Campaign } from "@/models/campaign.model";
 import { Candidate, ICandidate } from "@/models/candidate.model";
 import { bulkImportContacts, createCampaign } from "@/lib/smoove";
+import { wrapInBrandedTemplate } from "@/lib/email-template";
 
 // Replace merge tags like {{firstName}} with actual candidate data
 function replaceMergeTags(html: string, candidate: ICandidate): string {
@@ -63,45 +64,89 @@ export async function POST(request: NextRequest) {
       status: "draft",
     });
 
-    // Sync candidates to Smoove
+    // Sync candidates to Smoove (trim whitespace — webhook data may have trailing \n)
     const contacts = candidates.map((c) => ({
-      email: c.email,
-      firstName: c.firstName,
-      lastName: c.lastName,
-      cellPhone: c.phone,
+      email: c.email?.trim(),
+      firstName: c.firstName?.trim(),
+      lastName: c.lastName?.trim(),
+      cellPhone: c.phone?.trim(),
     }));
 
-    // Bulk import in batches of 500
-    for (let i = 0; i < contacts.length; i += 500) {
-      const batch = contacts.slice(i, i + 500);
-      await bulkImportContacts(batch);
+    // Use configured default list ID
+    const defaultListId = process.env.SMOOVE_DEFAULT_LIST_ID
+      ? Number(process.env.SMOOVE_DEFAULT_LIST_ID)
+      : undefined;
+
+    console.log("[Campaign] Using Smoove list ID:", defaultListId);
+
+    if (!defaultListId) {
+      console.error("[Campaign] SMOOVE_DEFAULT_LIST_ID not configured!");
+      await Campaign.findByIdAndUpdate(campaign._id, {
+        status: "failed",
+        errorMessage: "SMOOVE_DEFAULT_LIST_ID not configured",
+      });
+      return NextResponse.json(
+        { success: false, error: "שגיאת הגדרות: חסר List ID של Smoove" },
+        { status: 500 }
+      );
     }
 
-    // Replace merge tags per candidate and build personalized subject
-    const hasMergeTags = /\{\{(firstName|lastName|city|sectors)\}\}/.test(htmlContent + subject);
+    // Bulk import in batches of 500 — add contacts to the campaign list
+    for (let i = 0; i < contacts.length; i += 500) {
+      const batch = contacts.slice(i, i + 500);
+      const importResult = await bulkImportContacts(batch, defaultListId);
+      console.log("[Campaign] Bulk import result:", JSON.stringify(importResult));
 
-    // Create and send campaign via Smoove
-    // If merge tags exist, Smoove handles personalization via contact fields
+      if (!importResult.success) {
+        const errMsg = `Bulk import failed: ${importResult.error}`;
+        console.error("[Campaign]", errMsg);
+        await Campaign.findByIdAndUpdate(campaign._id, {
+          status: "failed",
+          errorMessage: errMsg,
+        });
+        return NextResponse.json(
+          { success: false, error: "שגיאה בייבוא אנשי קשר ל-Smoove" },
+          { status: 502 }
+        );
+      }
+    }
+
+    // Wrap content in branded email template
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000");
+    const logoUrl = "https://alok.co.il/wp-content/uploads/2026/01/לוגו-AL-גיוס-עובדים-והשמה-2.png";
+    const brandedHtml = wrapInBrandedTemplate(htmlContent, { logoUrl });
+
+    // Replace merge tags — Smoove uses [[Field Name]] syntax (double brackets)
+    const hasMergeTags = /\{\{(firstName|lastName|city|sectors)\}\}/.test(brandedHtml + subject);
+
     const smooveHtml = hasMergeTags
-      ? htmlContent
-          .replace(/\{\{firstName\}\}/g, "[First Name]")
-          .replace(/\{\{lastName\}\}/g, "[Last Name]")
-          .replace(/\{\{city\}\}/g, "[City]")
-          .replace(/\{\{sectors\}\}/g, "[Sectors]")
-      : htmlContent;
+      ? brandedHtml
+          .replace(/\{\{firstName\}\}/g, "[[First Name]]")
+          .replace(/\{\{lastName\}\}/g, "[[Last Name]]")
+          .replace(/\{\{city\}\}/g, "[[City]]")
+          .replace(/\{\{sectors\}\}/g, "[[Sectors]]")
+      : brandedHtml;
 
     const smooveSubject = hasMergeTags
       ? subject
-          .replace(/\{\{firstName\}\}/g, "[First Name]")
-          .replace(/\{\{lastName\}\}/g, "[Last Name]")
+          .replace(/\{\{firstName\}\}/g, "[[First Name]]")
+          .replace(/\{\{lastName\}\}/g, "[[Last Name]]")
       : subject;
+
+    console.log("[Campaign] Sending to Smoove — listId:", defaultListId, "subject:", smooveSubject);
 
     const smooveResult = await createCampaign({
       subject: smooveSubject,
       body: smooveHtml,
-      listIds: [], // Will use default list — to be configured
+      listIds: [defaultListId],
       sendNow: true,
     });
+
+    console.log("[Campaign] Smoove result:", JSON.stringify(smooveResult));
 
     if (smooveResult.success) {
       const campaignId = (smooveResult.data as Record<string, unknown>)?.id;
@@ -109,19 +154,26 @@ export async function POST(request: NextRequest) {
         status: "sent",
         smooveCampaignId: campaignId ? Number(campaignId) : undefined,
       });
+
+      const updatedCampaign = await Campaign.findById(campaign._id).lean();
+      return NextResponse.json(
+        { success: true, data: updatedCampaign },
+        { status: 201 }
+      );
     } else {
+      const errorMsg = smooveResult.error || "Smoove campaign creation failed";
+      console.error("[Campaign] Smoove failed:", errorMsg);
+
       await Campaign.findByIdAndUpdate(campaign._id, {
         status: "failed",
-        errorMessage: smooveResult.error,
+        errorMessage: errorMsg,
       });
+
+      return NextResponse.json(
+        { success: false, error: errorMsg },
+        { status: 502 }
+      );
     }
-
-    const updatedCampaign = await Campaign.findById(campaign._id).lean();
-
-    return NextResponse.json(
-      { success: true, data: updatedCampaign },
-      { status: 201 }
-    );
   } catch (error) {
     console.error("Campaign create error:", error);
     return NextResponse.json(

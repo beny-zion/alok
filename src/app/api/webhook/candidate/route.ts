@@ -60,7 +60,7 @@ function mapToCandidate(fields: Record<string, string>): Record<string, unknown>
   for (const [key, value] of Object.entries(fields)) {
     const fieldName = FIELD_MAP[key];
     if (fieldName && value) {
-      mapped[fieldName] = value;
+      mapped[fieldName] = typeof value === "string" ? value.trim() : value;
     }
   }
 

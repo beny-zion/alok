@@ -1,15 +1,18 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface ICandidate extends Document {
+  // Required fields
   firstName: string;
-  lastName: string;
   email: string;
-  phone: string;
+
+  // Optional fields (have defaults or are nullable)
+  lastName?: string;
+  phone?: string;
   age?: number;
   gender?: string;
   city?: string;
   address?: string;
-  sectors: string[];
+  sectors?: string[];
   jobType?: string;
   jobPermanence?: string;
   salaryExpectation?: number;
@@ -26,8 +29,8 @@ export interface ICandidate extends Document {
   jobListingNumber?: number;
   cvUrl?: string;
   smooveContactId?: number;
-  rawPayload: Record<string, unknown>;
-  source: string;
+  rawPayload?: Record<string, unknown>;
+  source?: string;
   createdAt: Date;
   updatedAt: Date;
 }

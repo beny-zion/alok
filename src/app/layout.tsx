@@ -12,6 +12,9 @@ const geistSans = Geist({
 export const metadata: Metadata = {
   title: "AL CRM — ניהול מועמדים",
   description: "מערכת ניהול מועמדים ודיוור — AL גיוס עובדים והשמה",
+  icons: {
+    icon: "/logo_al_alok.png",
+  },
 };
 
 export default function RootLayout({

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { JobListing } from "@/models/job-listing.model";
+import { createOrUpdateContact } from "@/lib/smoove";
 
 // Field mapping based on actual Elementor employer form data
 // Keys are Hebrew labels or "אין תווית FIELD_ID" patterns
@@ -88,6 +89,18 @@ export async function POST(request: NextRequest) {
       source: "elementor-webhook",
     });
     console.log("Job listing saved:", jobListing._id);
+
+    // Sync employer contact to Smoove - fire and forget
+    if (parsed.contactEmail) {
+      createOrUpdateContact({
+        email: parsed.contactEmail as string,
+        firstName: (parsed.contactName as string) || undefined,
+        lastName: (parsed.contactLastName as string) || undefined,
+        cellPhone: (parsed.contactPhone as string) || undefined,
+      })
+        .then((res) => console.log("Smoove employer sync:", res.success ? "ok" : res.error))
+        .catch((err) => console.error("Smoove employer sync failed:", err));
+    }
 
     return NextResponse.json(
       { success: true },

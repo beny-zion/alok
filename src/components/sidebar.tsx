@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
@@ -15,11 +16,16 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed right-0 top-0 h-full w-64 bg-[#1B1464] text-white flex flex-col z-50">
+    <aside className="fixed right-0 top-0 h-full w-64 bg-white border-l border-gray-200 flex flex-col z-50 shadow-sm">
       {/* Logo */}
-      <div className="p-6 border-b border-white/10">
-        <h1 className="text-2xl font-bold text-[#F7941D]">AL</h1>
-        <p className="text-xs text-white/60 mt-1">גיוס עובדים והשמה</p>
+      <div className="p-6 border-b border-gray-100">
+        <Image
+          src="/logo_al_alok.png"
+          alt="AL גיוס עובדים והשמה"
+          width={120}
+          height={120}
+          priority
+        />
       </div>
 
       {/* Navigation */}
@@ -33,8 +39,8 @@ export function Sidebar() {
               className={cn(
                 "flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-colors",
                 isActive
-                  ? "bg-white/15 text-[#F7941D] font-medium"
-                  : "text-white/70 hover:bg-white/10 hover:text-white"
+                  ? "bg-[#1B1464] text-white font-medium"
+                  : "text-[#1F2937] hover:bg-[#1B1464]/10 hover:text-[#1B1464]"
               )}
             >
               <span className="text-lg">{item.icon}</span>
@@ -45,8 +51,8 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-white/10">
-        <p className="text-xs text-white/40 text-center">AL CRM v1.0</p>
+      <div className="p-4 border-t border-gray-100">
+        <p className="text-xs text-gray-400 text-center">AL CRM v1.0</p>
       </div>
     </aside>
   );
