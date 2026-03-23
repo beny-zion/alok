@@ -78,6 +78,17 @@ export function updateCandidate(id: string, data: Partial<CandidateData>) {
   });
 }
 
+export interface FilterOptions {
+  cities: string[];
+  sectors: string[];
+  genders: string[];
+  jobTypes: string[];
+}
+
+export function getFilterOptions() {
+  return apiRequest<FilterOptions>("/api/candidates/filters");
+}
+
 // Campaigns
 export interface CampaignData {
   _id: string;

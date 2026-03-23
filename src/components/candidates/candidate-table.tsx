@@ -16,7 +16,7 @@ import { PlusIcon } from "lucide-react";
 import { CandidateFilters } from "./candidate-filters";
 import { CandidateDetailDialog } from "./candidate-detail-dialog";
 import { CandidateFormDialog } from "./candidate-form-dialog";
-import { getCandidates, type CandidateData } from "@/lib/api";
+import { getCandidates, getFilterOptions, type CandidateData, type FilterOptions } from "@/lib/api";
 
 interface CandidateTableProps {
   onSelectionChange?: (ids: string[]) => void;
@@ -32,11 +32,23 @@ export function CandidateTable({ onSelectionChange }: CandidateTableProps) {
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [filterOptions, setFilterOptions] = useState<FilterOptions | undefined>();
 
   // Dialog state
   const [detailCandidate, setDetailCandidate] = useState<CandidateData | null>(null);
   const [editCandidate, setEditCandidate] = useState<CandidateData | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
+
+  const fetchFilterOptions = useCallback(async () => {
+    const res = await getFilterOptions();
+    if (res.success && res.data) {
+      setFilterOptions(res.data);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFilterOptions();
+  }, [fetchFilterOptions]);
 
   const fetchCandidates = useCallback(async () => {
     setLoading(true);
@@ -93,6 +105,7 @@ export function CandidateTable({ onSelectionChange }: CandidateTableProps) {
     <div className="space-y-4">
       <CandidateFilters
         filters={filters}
+        filterOptions={filterOptions}
         onChange={(f) => { setFilters(f); setPage(1); }}
         onReset={() => { setFilters(EMPTY_FILTERS); setPage(1); }}
       />
@@ -231,6 +244,7 @@ export function CandidateTable({ onSelectionChange }: CandidateTableProps) {
         onDelete={() => {
           setDetailCandidate(null);
           fetchCandidates();
+          fetchFilterOptions();
         }}
       />
 
@@ -244,7 +258,7 @@ export function CandidateTable({ onSelectionChange }: CandidateTableProps) {
           }
         }}
         candidate={editCandidate}
-        onSuccess={fetchCandidates}
+        onSuccess={() => { fetchCandidates(); fetchFilterOptions(); }}
       />
     </div>
   );
