@@ -12,6 +12,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { getJobs, JobListingData } from "@/lib/api";
+import {
+  Briefcase,
+  Search,
+  Loader2,
+  Building2,
+  MapPin,
+  Phone,
+} from "lucide-react";
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState<JobListingData[]>([]);
@@ -48,91 +56,167 @@ export default function JobsPage() {
   }, [search]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[#1B1464]">משרות</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-[22px] font-bold text-[#0D0B3E] tracking-tight">משרות</h1>
+          <p className="text-[13px] text-gray-500 mt-0.5">
             {total > 0 ? `${total} משרות התקבלו מטופס מעסיקים` : "משרות שהתקבלו מטופס מעסיקים"}
           </p>
         </div>
-        <Input
-          placeholder="חיפוש חברה, תחום, אזור..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-xs"
-        />
+        <div className="relative w-72">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-gray-400 pointer-events-none" />
+          <Input
+            placeholder="חיפוש חברה, תחום, אזור..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pr-9 bg-gray-50 border-gray-200 focus:bg-white transition-colors text-sm h-9"
+          />
+        </div>
       </div>
 
-      <div className="border rounded-lg bg-card overflow-hidden">
+      {/* Table */}
+      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>חברה</TableHead>
-              <TableHead>תחום</TableHead>
-              <TableHead>אזור</TableHead>
-              <TableHead>סוג משרה</TableHead>
-              <TableHead>שכר</TableHead>
-              <TableHead>ימי עבודה</TableHead>
-              <TableHead>שעות</TableHead>
-              <TableHead>איש קשר</TableHead>
-              <TableHead>טלפון</TableHead>
-              <TableHead>אימייל</TableHead>
-              <TableHead>תאריך</TableHead>
+            <TableRow className="bg-gray-50/80 border-b border-gray-200 hover:bg-gray-50/80">
+              <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider">חברה</TableHead>
+              <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider">תחום</TableHead>
+              <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider">אזור</TableHead>
+              <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider">סוג משרה</TableHead>
+              <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider">שכר</TableHead>
+              <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider">ימי עבודה</TableHead>
+              <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider">שעות</TableHead>
+              <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider">איש קשר</TableHead>
+              <TableHead className="text-xs font-semibold text-gray-500 uppercase tracking-wider">תאריך</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
-                  טוען...
+                <TableCell colSpan={9} className="text-center py-16">
+                  <div className="flex flex-col items-center gap-2 text-gray-400">
+                    <Loader2 className="size-6 animate-spin" />
+                    <span className="text-sm">טוען משרות...</span>
+                  </div>
                 </TableCell>
               </TableRow>
             ) : jobs.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
-                  עדיין לא התקבלו משרות
+                <TableCell colSpan={9} className="text-center py-16">
+                  <div className="flex flex-col items-center gap-3 text-gray-400">
+                    <Briefcase className="size-8" strokeWidth={1.5} />
+                    <div>
+                      <p className="text-sm font-medium">עדיין לא התקבלו משרות</p>
+                      <p className="text-xs mt-0.5">משרות חדשות יופיעו כאן כשמעסיקים ימלאו את הטופס</p>
+                    </div>
+                  </div>
                 </TableCell>
               </TableRow>
             ) : (
               jobs.map((j) => (
-                <TableRow key={j._id}>
-                  <TableCell className="font-medium">
-                    <div>{j.companyName}</div>
-                    {j.companyPhone && (
-                      <div dir="ltr" className="text-xs text-muted-foreground">{j.companyPhone}</div>
+                <TableRow key={j._id} className="border-b border-gray-100 hover:bg-gray-50/70">
+                  {/* Company */}
+                  <TableCell>
+                    <div className="flex items-center gap-2.5">
+                      <div className="size-8 rounded-full bg-[#1B1464]/8 flex items-center justify-center shrink-0">
+                        <Building2 className="size-3.5 text-[#1B1464]" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-gray-900 truncate">{j.companyName}</div>
+                        {j.companyPhone && (
+                          <div dir="ltr" className="text-[11px] text-gray-400">{j.companyPhone}</div>
+                        )}
+                      </div>
+                    </div>
+                  </TableCell>
+
+                  {/* Sector */}
+                  <TableCell>
+                    {j.sector ? (
+                      <Badge variant="secondary" className="text-[11px] font-normal bg-gray-100 text-gray-600 hover:bg-gray-100">
+                        {j.sector}
+                      </Badge>
+                    ) : (
+                      <span className="text-gray-300">—</span>
                     )}
                   </TableCell>
+
+                  {/* Area */}
                   <TableCell>
-                    {j.sector ? <Badge variant="secondary">{j.sector}</Badge> : "—"}
+                    {j.workArea ? (
+                      <div className="flex items-center gap-1 text-sm text-gray-600">
+                        <MapPin className="size-3 text-gray-400 shrink-0" />
+                        {j.workArea}
+                      </div>
+                    ) : (
+                      <span className="text-gray-300">—</span>
+                    )}
                   </TableCell>
-                  <TableCell>{j.workArea || "—"}</TableCell>
-                  <TableCell>{j.jobPermanence || "—"}</TableCell>
-                  <TableCell>{j.salary ? `₪${j.salary.toLocaleString()}` : "—"}</TableCell>
+
+                  {/* Job type */}
                   <TableCell>
-                    {j.workDays && j.workDays.length > 0
-                      ? j.workDays.join(", ")
-                      : "—"}
+                    <div className="text-sm text-gray-600">
+                      {j.jobPermanence || <span className="text-gray-300">—</span>}
+                    </div>
                   </TableCell>
-                  <TableCell>{j.workHours || "—"}</TableCell>
+
+                  {/* Salary */}
                   <TableCell>
-                    {j.contactName || j.contactLastName ? (
-                      <div>{[j.contactName, j.contactLastName].filter(Boolean).join(" ")}</div>
-                    ) : "—"}
+                    {j.salary ? (
+                      <span className="text-sm font-medium text-gray-900 tabular-nums">
+                        {`₪${j.salary.toLocaleString()}`}
+                      </span>
+                    ) : (
+                      <span className="text-gray-300">—</span>
+                    )}
                   </TableCell>
+
+                  {/* Work days */}
                   <TableCell>
-                    {j.contactPhone ? (
-                      <div dir="ltr" className="text-sm">{j.contactPhone}</div>
-                    ) : "—"}
+                    {j.workDays && j.workDays.length > 0 ? (
+                      <span className="text-sm text-gray-600">{j.workDays.join(", ")}</span>
+                    ) : (
+                      <span className="text-gray-300">—</span>
+                    )}
                   </TableCell>
+
+                  {/* Work hours */}
                   <TableCell>
-                    {j.contactEmail ? (
-                      <a href={`mailto:${j.contactEmail}`} className="text-sm text-[#2563EB] hover:underline">
-                        {j.contactEmail}
-                      </a>
-                    ) : "—"}
+                    <span className="text-sm text-gray-600">
+                      {j.workHours || <span className="text-gray-300">—</span>}
+                    </span>
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
+
+                  {/* Contact */}
+                  <TableCell>
+                    {(j.contactName || j.contactLastName || j.contactPhone || j.contactEmail) ? (
+                      <div className="space-y-0.5">
+                        {(j.contactName || j.contactLastName) && (
+                          <div className="text-sm text-gray-900">
+                            {[j.contactName, j.contactLastName].filter(Boolean).join(" ")}
+                          </div>
+                        )}
+                        {j.contactPhone && (
+                          <div className="flex items-center gap-1 text-[11px] text-gray-400" dir="ltr">
+                            <Phone className="size-2.5" />
+                            {j.contactPhone}
+                          </div>
+                        )}
+                        {j.contactEmail && (
+                          <a href={`mailto:${j.contactEmail}`} className="text-[11px] text-[#2563EB] hover:underline block">
+                            {j.contactEmail}
+                          </a>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-gray-300">—</span>
+                    )}
+                  </TableCell>
+
+                  {/* Date */}
+                  <TableCell className="text-sm text-gray-400 tabular-nums">
                     {new Date(j.createdAt).toLocaleDateString("he-IL")}
                   </TableCell>
                 </TableRow>
