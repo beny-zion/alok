@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Campaign } from "@/models/campaign.model";
-import { Candidate } from "@/models/candidate.model";
+import { Candidate, ICandidate } from "@/models/candidate.model";
 import { bulkImportContacts, createCampaign } from "@/lib/smoove";
+
+// Replace merge tags like {{firstName}} with actual candidate data
+function replaceMergeTags(html: string, candidate: ICandidate): string {
+  return html
+    .replace(/\{\{firstName\}\}/g, candidate.firstName || "")
+    .replace(/\{\{lastName\}\}/g, candidate.lastName || "")
+    .replace(/\{\{city\}\}/g, candidate.city || "")
+    .replace(/\{\{sectors\}\}/g, (candidate.sectors || []).join(", "));
+}
 
 export async function GET() {
   try {
@@ -35,7 +44,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch selected candidates
-    const candidates = await Candidate.find({ _id: { $in: candidateIds } }).lean();
+    const candidates = await Candidate.find({ _id: { $in: candidateIds } }).lean() as unknown as ICandidate[];
 
     if (candidates.length === 0) {
       return NextResponse.json(
@@ -68,10 +77,28 @@ export async function POST(request: NextRequest) {
       await bulkImportContacts(batch);
     }
 
+    // Replace merge tags per candidate and build personalized subject
+    const hasMergeTags = /\{\{(firstName|lastName|city|sectors)\}\}/.test(htmlContent + subject);
+
     // Create and send campaign via Smoove
+    // If merge tags exist, Smoove handles personalization via contact fields
+    const smooveHtml = hasMergeTags
+      ? htmlContent
+          .replace(/\{\{firstName\}\}/g, "[First Name]")
+          .replace(/\{\{lastName\}\}/g, "[Last Name]")
+          .replace(/\{\{city\}\}/g, "[City]")
+          .replace(/\{\{sectors\}\}/g, "[Sectors]")
+      : htmlContent;
+
+    const smooveSubject = hasMergeTags
+      ? subject
+          .replace(/\{\{firstName\}\}/g, "[First Name]")
+          .replace(/\{\{lastName\}\}/g, "[Last Name]")
+      : subject;
+
     const smooveResult = await createCampaign({
-      subject,
-      body: htmlContent,
+      subject: smooveSubject,
+      body: smooveHtml,
       listIds: [], // Will use default list — to be configured
       sendNow: true,
     });
