@@ -105,39 +105,29 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: CORS_HEADERS });
 }
 
+// DEBUG MODE - log raw Elementor data and return 200
 export async function POST(request: NextRequest) {
   try {
-    const body = await parseBody(request);
-    console.log("Employer webhook received:", JSON.stringify(body).slice(0, 2000));
-
-    const fields = extractFields(body);
-    const parsed = mapToJobListing(fields);
-
-    if (!parsed.companyName) {
-      console.error("Missing companyName. Raw body keys:", Object.keys(body), "Fields:", fields);
-      return NextResponse.json(
-        { success: false, error: "Missing required field: companyName", receivedKeys: Object.keys(body) },
-        { status: 400, headers: CORS_HEADERS }
-      );
+    const text = await request.text();
+    const params = new URLSearchParams(text);
+    const body: Record<string, unknown> = {};
+    for (const [key, value] of params.entries()) {
+      body[key] = value;
     }
 
-    await connectDB();
-
-    const jobListing = await JobListing.create({
-      ...parsed,
-      rawPayload: body,
-      source: "elementor-webhook",
-    });
+    console.log("=== RAW EMPLOYER WEBHOOK DATA ===");
+    console.log(JSON.stringify(body, null, 2));
+    console.log("=================================");
 
     return NextResponse.json(
-      { success: true, data: { id: jobListing._id } },
-      { status: 201, headers: CORS_HEADERS }
+      { success: true, message: "Debug: employer data received" },
+      { status: 200, headers: CORS_HEADERS }
     );
   } catch (error) {
-    console.error("Webhook employer error:", error);
+    console.error("Employer webhook debug error:", error);
     return NextResponse.json(
-      { success: false, error: "Internal server error" },
-      { status: 500, headers: CORS_HEADERS }
+      { success: true },
+      { status: 200, headers: CORS_HEADERS }
     );
   }
 }
