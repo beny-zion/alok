@@ -2,129 +2,99 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { JobListing } from "@/models/job-listing.model";
 
+// Field mapping based on actual Elementor employer form data
+// Keys are Hebrew labels or "אין תווית FIELD_ID" patterns
 const FIELD_MAP: Record<string, string> = {
-  name: "companyName",
-  field_7e1d48a: "sector",
-  field_7871574: "contactName",
-  field_ad3e3ae: "contactPhone",
-  field_a487cc7: "contactEmail",
-  field_34ba21a: "type",
+  "אין תווית name": "companyName",
+  "אין תווית field_7ac6cda": "companyPhone",
+  "אין תווית field_7e1d48a": "sector",
+  "אזור העבודה:": "workArea",
+  "סוג משרה:": "jobPermanence",
+  "שכר:": "salary",
+  "ימי עבודה:": "workDays",
+  "שעות עבודה/סוג משמרת:": "workHours",
+  "אין תווית field_7871574": "contactName",
+  "אין תווית field_3382a5d": "contactLastName",
+  "אין תווית field_dc026e3": "contactGender",
+  "אין תווית field_ad3e3ae": "contactPhone",
+  "אין תווית field_a487cc7": "contactEmail",
+  "אין תווית field_34ba21a": "type",
 };
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-async function parseBody(request: NextRequest): Promise<Record<string, unknown>> {
-  const contentType = request.headers.get("content-type") || "";
-
-  if (contentType.includes("application/json")) {
-    return request.json();
-  }
-
-  if (contentType.includes("application/x-www-form-urlencoded")) {
-    const text = await request.text();
-    const params = new URLSearchParams(text);
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of params.entries()) {
-      result[key] = value;
-    }
-    return result;
-  }
-
-  if (contentType.includes("multipart/form-data")) {
-    const formData = await request.formData();
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of formData.entries()) {
-      result[key] = typeof value === "string" ? value : value.name;
-    }
-    return result;
-  }
-
-  try {
-    return await request.json();
-  } catch {
-    const text = await request.text();
-    try {
-      return JSON.parse(text);
-    } catch {
-      const params = new URLSearchParams(text);
-      const result: Record<string, unknown> = {};
-      for (const [key, value] of params.entries()) {
-        result[key] = value;
-      }
-      return result;
-    }
-  }
-}
-
-function extractFields(body: Record<string, unknown>): Record<string, string> {
-  const flat: Record<string, string> = {};
-
-  if (body.fields && typeof body.fields === "object") {
-    const fields = body.fields as Record<string, unknown>;
-    for (const [key, val] of Object.entries(fields)) {
-      if (val && typeof val === "object" && "value" in (val as Record<string, unknown>)) {
-        const fieldVal = (val as Record<string, unknown>).value;
-        const fieldId = (val as Record<string, unknown>).id as string || key;
-        flat[fieldId] = String(fieldVal ?? "");
-      } else {
-        flat[key] = String(val ?? "");
-      }
-    }
-    return flat;
-  }
-
-  for (const [key, value] of Object.entries(body)) {
-    if (typeof value === "string" || typeof value === "number") {
-      flat[key] = String(value);
-    }
-  }
-
-  return flat;
-}
-
-function mapToJobListing(fields: Record<string, string>): Record<string, unknown> {
+function mapToJobListing(body: Record<string, string>): Record<string, unknown> {
   const mapped: Record<string, unknown> = {};
 
-  for (const [key, value] of Object.entries(fields)) {
+  for (const [key, value] of Object.entries(body)) {
     const fieldName = FIELD_MAP[key];
     if (fieldName && value) {
-      mapped[fieldName] = value;
+      mapped[fieldName] = value.trim();
     }
   }
 
+  // Parse salary as number
   if (mapped.salary) mapped.salary = Number(mapped.salary) || undefined;
 
+  // Parse workDays comma-separated to array
+  if (typeof mapped.workDays === "string") {
+    mapped.workDays = mapped.workDays.split(",").map((s: string) => s.trim()).filter(Boolean);
+  }
+
   return mapped;
+}
+
+export async function GET() {
+  return NextResponse.json(
+    { status: "ok", endpoint: "employer webhook" },
+    { status: 200, headers: CORS_HEADERS }
+  );
 }
 
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: CORS_HEADERS });
 }
 
-// DEBUG MODE - log raw Elementor data and return 200
 export async function POST(request: NextRequest) {
   try {
+    // Parse URL-encoded body (flat Hebrew keys)
     const text = await request.text();
     const params = new URLSearchParams(text);
-    const body: Record<string, unknown> = {};
+    const body: Record<string, string> = {};
     for (const [key, value] of params.entries()) {
       body[key] = value;
     }
 
-    console.log("=== RAW EMPLOYER WEBHOOK DATA ===");
-    console.log(JSON.stringify(body, null, 2));
-    console.log("=================================");
+    const parsed = mapToJobListing(body);
+    console.log("Employer mapped:", JSON.stringify(parsed).slice(0, 1000));
+
+    if (!parsed.companyName) {
+      console.error("Missing companyName. Keys:", Object.keys(body));
+      return NextResponse.json(
+        { success: true },
+        { status: 200, headers: CORS_HEADERS }
+      );
+    }
+
+    await connectDB();
+
+    const jobListing = await JobListing.create({
+      ...parsed,
+      rawPayload: body,
+      source: "elementor-webhook",
+    });
+    console.log("Job listing saved:", jobListing._id);
 
     return NextResponse.json(
-      { success: true, message: "Debug: employer data received" },
+      { success: true },
       { status: 200, headers: CORS_HEADERS }
     );
   } catch (error) {
-    console.error("Employer webhook debug error:", error);
+    console.error("Webhook employer error:", error);
     return NextResponse.json(
       { success: true },
       { status: 200, headers: CORS_HEADERS }

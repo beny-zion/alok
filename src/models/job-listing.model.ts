@@ -2,7 +2,8 @@ import mongoose, { Schema, Document } from "mongoose";
 
 export interface IJobListing extends Document {
   companyName: string;
-  sector: string;
+  companyPhone?: string;
+  sector?: string;
   workArea?: string;
   jobType?: string;
   jobPermanence?: string;
@@ -10,10 +11,13 @@ export interface IJobListing extends Document {
   workDays?: string[];
   workHours?: string;
   contactName?: string;
+  contactLastName?: string;
+  contactGender?: string;
   contactPhone?: string;
   contactEmail?: string;
-  rawPayload: Record<string, unknown>;
-  source: string;
+  type?: string;
+  rawPayload?: Record<string, unknown>;
+  source?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -21,7 +25,8 @@ export interface IJobListing extends Document {
 const JobListingSchema = new Schema<IJobListing>(
   {
     companyName: { type: String, required: true },
-    sector: { type: String, required: true },
+    companyPhone: String,
+    sector: String,
     workArea: String,
     jobType: String,
     jobPermanence: String,
@@ -29,8 +34,11 @@ const JobListingSchema = new Schema<IJobListing>(
     workDays: { type: [String], default: [] },
     workHours: String,
     contactName: String,
+    contactLastName: String,
+    contactGender: String,
     contactPhone: String,
     contactEmail: { type: String, index: true },
+    type: String,
     rawPayload: { type: Schema.Types.Mixed, default: {} },
     source: { type: String, default: "elementor-webhook" },
   },
