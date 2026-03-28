@@ -113,6 +113,21 @@ export function Sidebar() {
           <span className="text-[11px] text-white/25">v1.0</span>
           <span className="text-[11px] text-white/25">AL CRM</span>
         </div>
+        <a
+          href="https://beny-zion-dev.vercel.app"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-1.5 mt-3 opacity-40 hover:opacity-70 transition-opacity"
+        >
+          <span className="text-[10px] text-white/50">Developed by</span>
+          <Image
+            src="/beny-zion-dev.svg"
+            alt="Beny Zion Dev"
+            width={20}
+            height={20}
+            className="drop-shadow-[0_0_4px_rgba(255,255,255,0.4)]"
+          />
+        </a>
       </div>
     </aside>
   );
