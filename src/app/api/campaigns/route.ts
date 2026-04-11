@@ -137,12 +137,14 @@ export async function POST(request: NextRequest) {
           .replace(/\{\{lastName\}\}/g, "[[Last Name]]")
       : subject;
 
-    console.log("[Campaign] Sending to Smoove — listId:", defaultListId, "subject:", smooveSubject);
+    // Send only to the selected candidates — not the entire list
+    const recipientEmails = contacts.map((c) => c.email).filter(Boolean) as string[];
+    console.log("[Campaign] Sending to Smoove — subject:", smooveSubject, "recipients:", recipientEmails.length);
 
     const smooveResult = await createCampaign({
       subject: smooveSubject,
       body: smooveHtml,
-      listIds: [defaultListId],
+      recipientEmails,
       sendNow: true,
     });
 

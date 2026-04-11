@@ -89,16 +89,26 @@ export async function bulkImportContacts(
 export async function createCampaign(params: {
   subject: string;
   body: string;
-  listIds: number[];
+  listIds?: number[];
+  recipientEmails?: string[];
   sendNow?: boolean;
 }) {
   const sendNow = params.sendNow ?? true;
   const endpoint = sendNow ? "/Campaigns?sendNow=true" : "/Campaigns";
-  return smooveRequest(endpoint, "POST", {
+
+  const body: Record<string, unknown> = {
     subject: params.subject,
     body: params.body,
-    toListsById: params.listIds,
-  });
+  };
+
+  // Prefer sending to specific emails over entire list
+  if (params.recipientEmails?.length) {
+    body.toMembersByEmail = params.recipientEmails;
+  } else if (params.listIds?.length) {
+    body.toListsById = params.listIds;
+  }
+
+  return smooveRequest(endpoint, "POST", body);
 }
 
 export async function getCampaignStats(campaignId: number) {
