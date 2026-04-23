@@ -4,3 +4,5 @@ node_modules
 temp_files/
 .claude/
 tsconfig.tsbuildinfo
+# Raw CSV source data — contains real candidate PII
+Sheets/

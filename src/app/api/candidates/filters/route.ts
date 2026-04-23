@@ -6,20 +6,29 @@ export async function GET() {
   try {
     await connectDB();
 
-    const [cities, sectors, genders, jobTypes] = await Promise.all([
-      Candidate.distinct("city").then((vals) =>
-        vals.filter(Boolean).sort((a: string, b: string) => a.localeCompare(b, "he"))
-      ),
-      Candidate.distinct("sectors").then((vals) =>
-        vals.filter(Boolean).sort((a: string, b: string) => a.localeCompare(b, "he"))
-      ),
-      Candidate.distinct("gender").then((vals) => vals.filter(Boolean)),
-      Candidate.distinct("jobType").then((vals) => vals.filter(Boolean)),
-    ]);
+    const [cities, sectors, genders, jobTypes, jobPermanences, tags, statuses, sources] =
+      await Promise.all([
+        Candidate.distinct("city").then((vals) =>
+          vals.filter(Boolean).sort((a: string, b: string) => a.localeCompare(b, "he"))
+        ),
+        Candidate.distinct("sectors").then((vals) =>
+          vals.filter(Boolean).sort((a: string, b: string) => a.localeCompare(b, "he"))
+        ),
+        Candidate.distinct("gender").then((vals) => vals.filter(Boolean)),
+        Candidate.distinct("jobType").then((vals) => vals.filter(Boolean)),
+        Candidate.distinct("jobPermanence").then((vals) => vals.filter(Boolean)),
+        Candidate.distinct("tags").then((vals) =>
+          vals.filter(Boolean).sort((a: string, b: string) => a.localeCompare(b, "he"))
+        ),
+        Candidate.distinct("status").then((vals) =>
+          vals.filter(Boolean).sort((a: string, b: string) => a.localeCompare(b, "he"))
+        ),
+        Candidate.distinct("source").then((vals) => vals.filter(Boolean)),
+      ]);
 
     return NextResponse.json({
       success: true,
-      data: { cities, sectors, genders, jobTypes },
+      data: { cities, sectors, genders, jobTypes, jobPermanences, tags, statuses, sources },
     });
   } catch (error) {
     console.error("Filter options error:", error);

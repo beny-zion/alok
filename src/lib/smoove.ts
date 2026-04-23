@@ -1,5 +1,7 @@
-const SMOOVE_API_URL = process.env.SMOOVE_API_URL || "https://rest.smoove.io/v1";
-const SMOOVE_API_KEY = process.env.SMOOVE_API_KEY!;
+// Read env lazily inside calls — module-level reads happen before tsx/Next.js
+// have a chance to inject .env values, which strands both vars as undefined.
+const getApiUrl = () => process.env.SMOOVE_API_URL || "https://rest.smoove.io/v1";
+const getApiKey = () => process.env.SMOOVE_API_KEY || "";
 
 interface SmooveContact {
   email: string;
@@ -13,6 +15,20 @@ interface SmooveResponse {
   success: boolean;
   data?: unknown;
   error?: string;
+  limitExceeded?: boolean;
+}
+
+// Detect "contact limit exceeded" for free-tier (100 contacts)
+function isLimitError(msg: string): boolean {
+  const s = msg.toLowerCase();
+  return (
+    s.includes("limit") ||
+    s.includes("quota") ||
+    s.includes("exceeded") ||
+    s.includes("תקרה") ||
+    s.includes("מגבל") ||
+    s.includes("maximum")
+  );
 }
 
 async function smooveRequest(
@@ -22,10 +38,10 @@ async function smooveRequest(
 ): Promise<SmooveResponse> {
   try {
     console.log(`[Smoove] ${method} ${endpoint}`, body ? JSON.stringify(body).slice(0, 500) : "");
-    const res = await fetch(`${SMOOVE_API_URL}${endpoint}`, {
+    const res = await fetch(`${getApiUrl()}${endpoint}`, {
       method,
       headers: {
-        Authorization: `Bearer ${SMOOVE_API_KEY}`,
+        Authorization: `Bearer ${getApiKey()}`,
         "Content-Type": "application/json",
       },
       body: body ? JSON.stringify(body) : undefined,
@@ -51,7 +67,11 @@ async function smooveRequest(
           : null) ||
         (typeof data === "string" ? data : null) ||
         `Smoove API error: ${res.status}`;
-      return { success: false, error: errMsg };
+      return {
+        success: false,
+        error: errMsg,
+        limitExceeded: res.status === 402 || res.status === 403 || isLimitError(errMsg),
+      };
     }
 
     return { success: true, data };
@@ -60,7 +80,8 @@ async function smooveRequest(
   }
 }
 
-export async function createOrUpdateContact(contact: SmooveContact) {
+export async function createOrUpdateContact(contact: SmooveContact): Promise<SmooveResponse> {
+  if (!contact.email) return { success: false, error: "no email — skipped" };
   return smooveRequest("/Contacts", "POST", {
     email: contact.email,
     firstName: contact.firstName,
@@ -71,12 +92,30 @@ export async function createOrUpdateContact(contact: SmooveContact) {
   });
 }
 
+// Updates an existing Smoove contact by its Smoove-side ID.
+// Prefer this over createOrUpdateContact when the email itself is changing —
+// POST /Contacts upserts by email, so a changed email creates a new contact
+// and orphans the old one. PUT /Contacts/{id} keeps the same contact record.
+export async function updateContactById(
+  contactId: number,
+  updates: Partial<SmooveContact>
+): Promise<SmooveResponse> {
+  const body: Record<string, unknown> = {};
+  if (updates.email !== undefined) body.email = updates.email;
+  if (updates.firstName !== undefined) body.firstName = updates.firstName;
+  if (updates.lastName !== undefined) body.lastName = updates.lastName;
+  if (updates.cellPhone !== undefined) body.cellPhone = updates.cellPhone;
+  return smooveRequest(`/Contacts/${contactId}`, "PUT", body);
+}
+
 export async function bulkImportContacts(
   contacts: SmooveContact[],
   listId?: number
-) {
+): Promise<SmooveResponse> {
+  const withEmail = contacts.filter((c) => c.email);
+  if (withEmail.length === 0) return { success: true, data: { skipped: contacts.length } };
   return smooveRequest("/Contacts_BulkImport", "POST", {
-    contacts: contacts.map((c) => ({
+    contacts: withEmail.map((c) => ({
       email: c.email,
       firstName: c.firstName,
       lastName: c.lastName,

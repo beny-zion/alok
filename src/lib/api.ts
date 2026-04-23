@@ -17,10 +17,13 @@ async function apiRequest<T>(endpoint: string, options?: RequestInit): Promise<A
 // Candidates
 export interface CandidateData {
   _id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;
+  email?: string;
+  phone?: string;
+  noEmail?: boolean;
+  idNumber?: string;
   age?: number;
   gender?: string;
   city?: string;
@@ -39,7 +42,18 @@ export interface CandidateData {
   additionalInfo?: string;
   jobListingNumber?: number;
   cvUrl?: string;
+  status?: string;
+  statusNotes?: string;
+  registrationDate?: string;
+  placedJob?: string;
+  placedCompany?: string;
+  tags?: string[];
+  importBatchId?: string;
   source?: string;
+  smooveSynced?: boolean;
+  smooveSyncedAt?: string;
+  smooveError?: string;
+  smooveContactId?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -83,6 +97,102 @@ export interface FilterOptions {
   sectors: string[];
   genders: string[];
   jobTypes: string[];
+  jobPermanences: string[];
+  tags: string[];
+  statuses: string[];
+  sources: string[];
+}
+
+export function syncCandidateToSmoove(id: string) {
+  return apiRequest<{ smooveContactId?: number }>(`/api/candidates/${id}/sync-smoove`, {
+    method: "POST",
+  });
+}
+
+export interface StatsData {
+  total: number;
+  bySource: Record<string, number>;
+  smoove: {
+    synced: number;
+    error: number;
+    pending: number;
+    noEmail: number;
+  };
+  topSectors: Array<{ name: string; count: number }>;
+  topCities: Array<{ name: string; count: number }>;
+  topTags: Array<{ name: string; count: number }>;
+  topStatuses: Array<{ name: string; count: number }>;
+  recent: Array<{
+    _id: string;
+    firstName?: string;
+    lastName?: string;
+    fullName?: string;
+    email?: string;
+    phone?: string;
+    source?: string;
+    createdAt: string;
+  }>;
+}
+
+export function getCandidateStats() {
+  return apiRequest<StatsData>("/api/candidates/stats");
+}
+
+export interface SyncPendingResult {
+  attempted: number;
+  synced: number;
+  failed: number;
+  limitHit: boolean;
+  error?: string;
+}
+
+export function syncPendingToSmoove() {
+  return apiRequest<SyncPendingResult>("/api/candidates/sync-smoove", {
+    method: "POST",
+    body: JSON.stringify({ max: 500 }),
+  });
+}
+
+export function getPendingSmooveCount() {
+  return apiRequest<{ pending: number }>("/api/candidates/sync-smoove");
+}
+
+export interface SmooveUsage {
+  total: number;
+  planLimit: number;
+  remaining: number;
+  percent: number;
+  isNearLimit: boolean;
+  isAtLimit: boolean;
+}
+
+export function getSmooveUsage() {
+  return apiRequest<SmooveUsage>("/api/smoove/usage");
+}
+
+export function getCandidateIds(params: Record<string, string>) {
+  const query = new URLSearchParams(params).toString();
+  return apiRequest<{ ids: string[]; total: number }>(`/api/candidates/ids?${query}`);
+}
+
+export function importCandidates(formData: FormData) {
+  return fetch(`${BASE_URL}/api/candidates/import`, {
+    method: "POST",
+    body: formData,
+  }).then((r) => r.json() as Promise<ApiResponse<ImportResult>>);
+}
+
+export interface ImportResult {
+  total: number;
+  created: number;
+  updated: number;
+  skippedNoEmail: number;
+  errors: Array<{ row: number; reason: string }>;
+  batchId: string;
+  smooveSynced?: number;
+  smooveFailed?: number;
+  smooveLimitHit?: boolean;
+  smooveError?: string;
 }
 
 export function getFilterOptions() {

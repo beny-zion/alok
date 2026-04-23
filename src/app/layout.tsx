@@ -26,7 +26,7 @@ export default function RootLayout({
     <html lang="he" dir="rtl" className={`${geistSans.variable} h-full antialiased`}>
       <body className="min-h-full flex bg-muted/30">
         <Sidebar />
-        <main className="flex-1 mr-64 p-6">{children}</main>
+        <main className="flex-1 min-w-0 mr-64 p-6">{children}</main>
         <Toaster position="top-center" richColors />
       </body>
     </html>

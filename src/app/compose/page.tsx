@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TipTapEditor } from "@/components/campaigns/tiptap-editor";
 import { CandidateTable } from "@/components/candidates/candidate-table";
+import { SmooveUsageBanner } from "@/components/smoove-usage-banner";
 import { createCampaign } from "@/lib/api";
 import { wrapInBrandedTemplate } from "@/lib/email-template";
 import { toast } from "sonner";
@@ -183,7 +184,16 @@ function ComposeWizard() {
                 </Badge>
               )}
             </div>
-            <CandidateTable onSelectionChange={handleSelectionChange} />
+            <div className="mb-4 space-y-3">
+              <SmooveUsageBanner />
+              <p className="text-xs text-gray-500">
+                מוצגים רק מועמדים שסונכרנו ל-Smoove. מועמדים ללא מייל או שסנכרון נכשל לא מופיעים.
+              </p>
+            </div>
+            <CandidateTable
+              onSelectionChange={handleSelectionChange}
+              lockedFilters={{ smooveStatus: "synced" }}
+            />
           </CardContent>
         </Card>
       )}

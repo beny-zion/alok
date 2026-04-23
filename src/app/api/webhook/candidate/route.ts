@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { Candidate } from "@/models/candidate.model";
 import { createOrUpdateContact } from "@/lib/smoove";
+import { normalizePhone } from "@/lib/phone";
 
 // Corrected field ID mapping based on actual Elementor webhook data
 const FIELD_MAP: Record<string, string> = {
@@ -113,43 +114,74 @@ export async function POST(request: NextRequest) {
     const fields = extractFieldsFromBracketNotation(body);
     const parsed = mapToCandidate(fields);
 
-    if (!parsed.email || !parsed.firstName) {
-      console.error("Missing required fields. Parsed:", parsed);
+    if (!parsed.firstName) {
+      console.error("Missing firstName. Parsed:", parsed);
       return NextResponse.json(
-        { success: false, error: "Missing required fields" },
+        { success: false, error: "Missing required field: firstName" },
         { status: 200, headers: CORS_HEADERS }
       );
     }
 
-    // Save to MongoDB
-    await connectDB();
-    const candidate = await Candidate.findOneAndUpdate(
-      { email: parsed.email },
-      {
-        ...parsed,
-        rawPayload: body,
-        source: "elementor-webhook",
-      },
-      { upsert: true, new: true, runValidators: true }
-    );
-    console.log("Candidate saved:", candidate.email);
+    if (typeof parsed.phone === "string") {
+      const norm = normalizePhone(parsed.phone);
+      if (norm) parsed.phone = norm;
+    }
 
-    // Smoove sync - fire and forget, don't delay response
-    createOrUpdateContact({
-      email: candidate.email,
-      firstName: candidate.firstName,
-      lastName: candidate.lastName,
-      cellPhone: candidate.phone,
-    })
-      .then((res) => {
-        if (res.success && res.data) {
-          const contactId = (res.data as Record<string, unknown>)?.contactId;
-          if (contactId) {
-            Candidate.findByIdAndUpdate(candidate._id, { smooveContactId: contactId }).exec();
-          }
-        }
+    const hasEmail = typeof parsed.email === "string" && parsed.email.length > 0;
+    parsed.noEmail = !hasEmail;
+
+    // Save to MongoDB — upsert by email when we have one, otherwise always insert
+    await connectDB();
+    const payload = {
+      ...parsed,
+      rawPayload: { webhook: body },
+      source: "elementor-webhook",
+    };
+    const candidate = hasEmail
+      ? await Candidate.findOneAndUpdate({ email: parsed.email }, payload, {
+          upsert: true,
+          new: true,
+          runValidators: true,
+          setDefaultsOnInsert: true,
+        })
+      : await Candidate.create(payload);
+    console.log("Candidate saved:", candidate.email || `(no email) ${candidate._id}`);
+
+    // Smoove sync only if we have an email — fire and forget
+    if (hasEmail) {
+      createOrUpdateContact({
+        email: candidate.email!,
+        firstName: candidate.firstName,
+        lastName: candidate.lastName,
+        cellPhone: candidate.phone,
       })
-      .catch(() => console.error("Smoove sync failed:", candidate.email));
+        .then((res) => {
+          if (res.success) {
+            const contactId =
+              res.data && typeof res.data === "object"
+                ? (res.data as Record<string, unknown>).contactId
+                : undefined;
+            Candidate.findByIdAndUpdate(candidate._id, {
+              smooveSynced: true,
+              smooveSyncedAt: new Date(),
+              smooveError: undefined,
+              ...(contactId ? { smooveContactId: contactId } : {}),
+            }).exec();
+          } else {
+            Candidate.findByIdAndUpdate(candidate._id, {
+              smooveSynced: false,
+              smooveError: res.error,
+            }).exec();
+          }
+        })
+        .catch((err) => {
+          console.error("Smoove sync failed:", candidate.email, err);
+          Candidate.findByIdAndUpdate(candidate._id, {
+            smooveSynced: false,
+            smooveError: String(err),
+          }).exec();
+        });
+    }
 
     return NextResponse.json(
       { success: true },

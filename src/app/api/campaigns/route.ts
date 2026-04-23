@@ -64,13 +64,27 @@ export async function POST(request: NextRequest) {
       status: "draft",
     });
 
-    // Sync candidates to Smoove (trim whitespace — webhook data may have trailing \n)
-    const contacts = candidates.map((c) => ({
-      email: c.email?.trim(),
-      firstName: c.firstName?.trim(),
-      lastName: c.lastName?.trim(),
-      cellPhone: c.phone?.trim(),
-    }));
+    // Sync candidates to Smoove — skip any without email (cannot receive campaign)
+    const skippedNoEmail = candidates.filter((c) => !c.email?.trim()).length;
+    const contacts = candidates
+      .filter((c) => c.email?.trim())
+      .map((c) => ({
+        email: c.email!.trim(),
+        firstName: c.firstName?.trim(),
+        lastName: c.lastName?.trim(),
+        cellPhone: c.phone?.trim(),
+      }));
+
+    if (contacts.length === 0) {
+      await Campaign.findByIdAndUpdate(campaign._id, {
+        status: "failed",
+        errorMessage: "לא נבחרו מועמדים עם כתובת מייל",
+      });
+      return NextResponse.json(
+        { success: false, error: "לא נבחרו מועמדים עם כתובת מייל" },
+        { status: 400 }
+      );
+    }
 
     // Use configured default list ID
     const defaultListId = process.env.SMOOVE_DEFAULT_LIST_ID
@@ -159,7 +173,7 @@ export async function POST(request: NextRequest) {
 
       const updatedCampaign = await Campaign.findById(campaign._id).lean();
       return NextResponse.json(
-        { success: true, data: updatedCampaign },
+        { success: true, data: updatedCampaign, skippedNoEmail },
         { status: 201 }
       );
     } else {

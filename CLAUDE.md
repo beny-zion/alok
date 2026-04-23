@@ -224,41 +224,86 @@ Single-step form from the "מעסיקים" page.
 
 ## Data Models (Mongoose Schemas)
 
-### Candidate (Job Seeker — from Form A)
+### Candidate (Job Seeker — from Form A, manual entry, or CSV import)
 ```typescript
 {
-  // Core fields (extracted from webhook)
-  firstName: string;           // from: name
-  lastName: string;            // from: field_9b4b058
-  email: string;               // from: field_6c16bcf — required, unique, indexed
-  phone: string;               // from: field_8331320
-  age?: number;                // from: field_55a80fb
-  gender?: string;             // from: field_7e1d48a — "זכר" | "נקבה"
-  city?: string;               // from: field_0271f15
-  address?: string;            // from: field_5b06785
-  sectors: string[];           // from: field_760e340 — array of selected sectors
-  jobType?: string;            // from: field_46111c1 — "משרה מלאה" | "משרה חלקית"
-  jobPermanence?: string;      // from: field_df823a4 — "עבודה קבועה" | "עבודה זמנית"
-  salaryExpectation?: number;  // from: field_b2c9d05
-  freeText?: string;           // from: mytext
-  motherTongue?: string;       // from: field_bf77361
-  additionalLanguages?: string[]; // from: field_c4db162
-  hasWorkExperience?: boolean;    // from: field_0ac03f5
+  // Identity — all optional to accommodate incomplete CSV imports
+  firstName?: string;
+  lastName?: string;
+  fullName?: string;           // fallback when source has single "name" column
+  email?: string;              // optional, indexed sparse (was: required+unique)
+  phone?: string;              // normalized via lib/phone.ts, indexed sparse
+  noEmail?: boolean;           // explicit flag — skip Smoove sync if true
+  idNumber?: string;           // ת.ז. / passport, indexed sparse
+
+  age?: number;
+  gender?: string;             // "זכר" | "נקבה"
+  city?: string;
+  address?: string;
+
+  sectors: string[];           // flexible list — combobox with free-add
+  jobType?: string;
+  jobPermanence?: string;
+  salaryExpectation?: number;
+
+  freeText?: string;
+  motherTongue?: string;
+  additionalLanguages?: string[];
+  hasWorkExperience?: boolean;
   workExperienceDetails?: string;
   hasTraining?: boolean;
   trainingDetails?: string;
-  additionalInfo?: string;     // from: field_a8e8524
-  jobListingNumber?: number;   // job they saw in the listings
-  cvUrl?: string;              // uploaded CV file URL
-  smooveContactId?: number;    // Smoove's internal contact ID (synced)
+  additionalInfo?: string;
+  additionalNotes?: string;
+  jobListingNumber?: number;
+  cvUrl?: string;
 
-  // Meta
-  rawPayload: object;          // full Elementor webhook payload
-  source: string;              // default: "elementor-webhook"
+  // Status tracking (from main list CSV)
+  status?: string;             // "נשלח לרעיון" | "לא טופל" | "עודכן" | "לא ענה" | "התחיל עבודה" | …
+  statusNotes?: string;
+  registrationDate?: Date;
+
+  // Placement (when a candidate was placed in a job)
+  placedJob?: string;
+  placedCompany?: string;
+  firstPaymentDate?: Date;
+  secondPaymentDate?: Date;
+
+  // Tag system — classifies candidate source/group (aerospace-women, tomer-interview, main-list…)
+  tags: string[];              // indexed, shown in filters, used in campaign targeting
+
+  // Import tracking
+  importBatchId?: string;      // UUID — groups candidates from the same import run
+
+  // Smoove sync tracking
+  smooveContactId?: number;
+  smooveSynced?: boolean;      // indexed — if false, needs push to Smoove
+  smooveSyncedAt?: Date;
+  smooveError?: string;        // last sync error (e.g. "Authentication failed")
+
+  // Raw history — accumulates every source that touched this record
+  rawPayload: {
+    webhook?: object;          // Elementor webhook payload (if source was webhook)
+    imports?: Array<{          // every CSV import that created/updated this record
+      batchId: string;
+      source: string;          // e.g. "csv:תעשיה אוירית 2 - גיליון1.csv"
+      row: object;             // original CSV row
+      importedAt: Date;
+    }>;
+  };
+  source: string;              // "elementor-webhook" | "manual" | "csv-import"
   createdAt: Date;
   updatedAt: Date;
 }
 ```
+
+**Uniqueness strategy:** during upsert (import, webhook, manual), identity is resolved in priority order:
+1. `email` (if present)
+2. `idNumber` (if present)
+3. `phone` (normalized, if present)
+4. Otherwise → new record
+
+**When a duplicate is found during import:** only empty/null fields are filled in (`$set`), new tag is added (`$addToSet`), and the raw import row is pushed to `rawPayload.imports[]` for full history.
 
 ### JobListing (Employer — from Form B)
 ```typescript
@@ -303,21 +348,29 @@ Single-step form from the "מעסיקים" page.
 ### Webhooks
 ```
 POST   /api/webhook/candidate        — Receive job seeker form submissions (Form A)
-POST   /api/webhook/employer          — Receive employer form submissions (Form B)
+POST   /api/webhook/employer         — Receive employer form submissions (Form B)
 ```
 
 ### Candidates
 ```
-GET    /api/candidates              — List candidates (paginated, filterable)
-         ?page=1&limit=20&location=south&sector=tech&search=john
-GET    /api/candidates/:id          — Get single candidate
-DELETE /api/candidates/:id          — Delete candidate
+GET    /api/candidates                — List candidates (paginated, filterable)
+         ?page=1&limit=20&city=אשדוד&sector=בישול&tag=aerospace-women&search=…
+POST   /api/candidates                — Manual add (validates identity, syncs to Smoove)
+GET    /api/candidates/:id            — Get single candidate
+PUT    /api/candidates/:id            — Update (resets smooveSynced if email was added)
+DELETE /api/candidates/:id            — Delete + unsubscribe from Smoove
+GET    /api/candidates/filters        — Distinct values for filters: cities, sectors, tags, statuses
+GET    /api/candidates/ids            — All matching IDs (for "Select All across filter")
+POST   /api/candidates/import         — Bulk CSV import with column mapping + tag
+POST   /api/candidates/sync-smoove    — Retry Smoove sync for candidates with smooveSynced=false
+GET    /api/candidates/sync-smoove    — Count of candidates pending Smoove sync
 ```
 
 ### Campaigns
 ```
 POST   /api/campaigns               — Sync contacts to Smoove list + create & send campaign
          Body: { subject, htmlContent, candidateIds[] }
+         Response: { success, data: campaign, skippedNoEmail }
 GET    /api/campaigns               — List campaigns from MongoDB
 GET    /api/campaigns/:id           — Get campaign details
 GET    /api/campaigns/:id/stats     — Fetch live stats from Smoove API
@@ -330,31 +383,50 @@ GET    /api/health                  — Health check (MongoDB connectivity)
 
 ---
 
-## Feature Phases (MVP)
+## Implementation Status
 
-### Phase 1: Ingestion (Webhook API)
-- [ ] POST endpoint in Next.js API Routes to receive Elementor form webhooks
-- [ ] Parse incoming JSON: Name, Email, Phone, Sector, Location, CV link
-- [ ] Validate with Zod, save to MongoDB via Mongoose
-- [ ] Return appropriate status codes (201 created, 400 validation error, 409 duplicate email)
-- [ ] Store full raw payload in `rawPayload` field for flexibility
-- [ ] Upsert on duplicate email (update existing record)
+### ✅ Done
 
-### Phase 2: Admin Dashboard (Frontend)
-- [ ] Candidate Table: fetch and display all candidates with server-side pagination
-- [ ] Smart Filtering: filter by location, sector, free-text search
-- [ ] Selection: checkboxes per row + "Select All" (respecting current filter)
-- [ ] Compose Campaign: modal/page with TipTap rich text editor
-- [ ] Write email subject + HTML body, add links, preview
-- [ ] "Send Campaign" button triggers the sending flow
+**Ingestion:**
+- Elementor webhook → [src/app/api/webhook/candidate/route.ts](src/app/api/webhook/candidate/route.ts). Parses bracket-notation URL-encoded body, maps field IDs to candidate fields, upserts by email (or creates new if no email), tracks Smoove sync result.
+- Manual add via dashboard → [src/app/api/candidates/route.ts](src/app/api/candidates/route.ts) (POST). Form: [src/components/candidates/candidate-form-dialog.tsx](src/components/candidates/candidate-form-dialog.tsx) — covers ALL candidate fields (identity, status, placement, experience, training, tags, sectors via free combobox).
+- CSV bulk import → [src/app/import/page.tsx](src/app/import/page.tsx) + [src/components/candidates/import-wizard.tsx](src/components/candidates/import-wizard.tsx). 4-step wizard: upload → settings (tag + name-split strategy + default date) → column mapping with auto-detect → execute + summary. Backend: [src/app/api/candidates/import/route.ts](src/app/api/candidates/import/route.ts). Uses `papaparse`, strips BOM, handles DD/MM/YYYY dates.
+- CLI import script → [scripts/import-all.ts](scripts/import-all.ts). Runs all 6 CSVs in `./Sheets/` sequentially with pre-configured mappings. Report per file + grand totals.
 
-### Phase 3: Campaign Execution (Smoove Integration)
-- [ ] Sync selected candidates to a Smoove list via BulkImport API
-- [ ] Create and send campaign via Smoove Campaigns API
-- [ ] Save campaign record in MongoDB with smooveCampaignId
-- [ ] Campaign list page showing all sent campaigns
-- [ ] Stats page: fetch open/click/bounce rates from Smoove Statistics API
-- [ ] Status tracking: draft → sent / failed
+**Dashboard:**
+- Candidate table → [src/components/candidates/candidate-table.tsx](src/components/candidates/candidate-table.tsx). Paginated, server-side filtered (city, sector, gender, jobType, tag, full-text search). Per-row "no email" indicator, "Select All across filter" button.
+- Filters → [src/components/candidates/candidate-filters.tsx](src/components/candidates/candidate-filters.tsx). Sector/tag dropdowns populated dynamically from `Candidate.distinct()` via [src/app/api/candidates/filters/route.ts](src/app/api/candidates/filters/route.ts) — new values auto-appear.
+- Free multi-combobox → [src/components/ui/free-multi-combobox.tsx](src/components/ui/free-multi-combobox.tsx). Type-to-add, used for sectors and tags.
+- Compose campaign → [src/app/compose/page.tsx](src/app/compose/page.tsx). TipTap editor, merge tags (`{{firstName}}` → `[[First Name]]`), live HTML preview with branded wrapper.
+
+**Campaign execution:**
+- `POST /api/campaigns` → [src/app/api/campaigns/route.ts](src/app/api/campaigns/route.ts). Filters out no-email candidates (returns `skippedNoEmail`), bulk-imports in batches of 500, creates Smoove campaign via `toMembersByEmail` (only selected, not entire list).
+- Campaign list + stats → [src/app/campaigns/page.tsx](src/app/campaigns/page.tsx), live stats via Smoove Statistics API.
+
+**Smoove sync tracking:**
+- Every candidate carries `smooveSynced` / `smooveSyncedAt` / `smooveError`.
+- When a candidate gets an email added via PUT ([src/app/api/candidates/[id]/route.ts](src/app/api/candidates/[id]/route.ts)), `smooveSynced` resets to `false` automatically.
+- Retry endpoint: `POST /api/candidates/sync-smoove` pushes pending candidates (email + !smooveSynced) in batches of 100. Stops gracefully on free-tier limit (HTTP 402/403 or "limit exceeded" messages detected in [src/lib/smoove.ts](src/lib/smoove.ts) `isLimitError`).
+
+**Data integrity tools:**
+- [scripts/check-db.ts](scripts/check-db.ts) — snapshot of DB state (total, by tag, Smoove sync status).
+- [scripts/verify-import.ts](scripts/verify-import.ts) — spot-check 15 random candidates vs original CSV rows + detect duplicates (by phone / idNumber / email / name+city).
+
+### ⚠️ Known issues
+
+- **Smoove `401 Authentication failed`** — the API key in `.env.local` is rejected. All 212 sync attempts failed on last run. Regenerate key in Smoove Dashboard → Settings → API, update `SMOOVE_API_KEY`, then run the sync-smoove endpoint.
+- **Smoove free tier = 100 contacts** — the `limitExceeded` detection is in place, but we haven't hit it in production yet (because auth is failing first). When resolved, the sync-smoove endpoint will stop cleanly at 100.
+- **16 phone-level duplicates + 1 idNumber duplicate** detected in DB (see `verify-import.ts` output). These snuck in because early imports stored records before the phone/idNumber dedup keys were normalized. They need a manual merge tool (see "Next Steps").
+
+### 🚧 Next steps / missing features
+
+- **Duplicate merge UI** — `/admin/merge` page to review detected duplicate groups (`verify-import.ts` output) and merge interactively. Should combine tags, rawPayload.imports[], keep best non-empty values per field.
+- **Webhook field-ID verification** — the `FIELD_MAP` in [src/app/api/webhook/candidate/route.ts](src/app/api/webhook/candidate/route.ts) was copied from CLAUDE.md. Needs smoke test: submit a real form on the live site and confirm all fields arrive correctly.
+- **Fix pre-existing lint errors** — 13 errors in [src/components/candidates/candidate-table.tsx](src/components/candidates/candidate-table.tsx) (setState-in-effect) and [src/components/campaigns/tiptap-editor.tsx](src/components/campaigns/tiptap-editor.tsx) (Cannot create components during render). They don't block build but will accumulate.
+- **Auth** — no authentication on any admin route. MVP assumption is internal tool. Before exposing, add at least basic auth or NextAuth.
+- **CV file handling** — `cvUrl` is just a string now. WordPress-side uploads work, but admin-uploaded CVs for CSV-imported candidates need an upload endpoint.
+- **Bounce/unsubscribe feedback loop** — Smoove tracks bounces/unsubs but we don't pull them back. Need a scheduled job (`GET /v1/Contacts/{id}/Status`) to flag bounced emails in our DB.
+- **Delete by tag / bulk ops** — currently only individual delete. Helpful for cleaning up test imports.
 
 ---
 
@@ -469,4 +541,30 @@ npm install
 npm run dev          # Start dev server on :3000
 npm run build        # Production build
 npm run lint         # ESLint
+
+# Admin scripts (require .env.local with MONGODB_URI)
+npx tsx scripts/import-all.ts     # Bulk-import every CSV in ./Sheets/ with pre-configured mappings
+npx tsx scripts/check-db.ts       # Print DB snapshot: totals by tag + Smoove sync status
+npx tsx scripts/verify-import.ts  # Spot-check 15 random candidates vs source CSV + detect duplicates
 ```
+
+### Source data (`./Sheets/`)
+
+Six CSVs from the client's Google Drive, each with its own schema:
+
+| file | rows | tag assigned | notes |
+|------|------|---|---|
+| `עותק של AL - 11 באפריל… מחפשי עבודה.csv` | 8986 (1174 real) | `main-list` | 3 blank header rows — set `skipLines: 3`. Most rows have only phone, no name. Rich fields: status, placed job, placed company |
+| `הרשמה לתעשיה אוירית - בנות.csv` | 25 | `aerospace-women` | Single `שם` column — needs `nameSplit: "first-space"` |
+| `הרשמה לתעשיה אוירית - גיליון1.csv` | 44 | `aerospace-men` | Same as above, מעדכן column used for status |
+| `תעשיה אוירית 2 - גיליון1.csv` (+ copy) | 21 | `aerospace-2` | File 5 and 6 are identical — re-running is safe (upsert merges) |
+| `קבוצה לסיור וראיון בתומר - גיליון1.csv` | 79 | `tomer-interview` | Status tracking: עודכן / לא ענה / לא מעוניין |
+
+Last import result (see [scripts/verify-import.ts](scripts/verify-import.ts) output):
+- **881 candidates** in DB (212 with email, 669 without)
+- **44 cross-sheet merges** (same person in ≥2 sheets)
+- **Spot-check: 47/47 fields match** source CSV rows ✅
+
+### Environment
+
+When editing webhook field mappings, the source of truth for Elementor field IDs is the "Elementor Webhook Payloads" section above. The DB schema is **flexible by design** — `rawPayload.webhook` stores the full unparsed body so schema changes from Elementor can be recovered retroactively.

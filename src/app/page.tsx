@@ -1,17 +1,43 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { CandidateTable } from "@/components/candidates/candidate-table";
+import type { CandidateFiltersState } from "@/components/candidates/candidate-filters";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Send } from "lucide-react";
+import { Send, Loader2 } from "lucide-react";
 
-export default function HomePage() {
+const FILTER_KEYS: Array<keyof CandidateFiltersState> = [
+  "search",
+  "city",
+  "sector",
+  "gender",
+  "jobType",
+  "jobPermanence",
+  "status",
+  "tag",
+  "source",
+  "hasEmail",
+  "hasPhone",
+  "noName",
+  "smooveStatus",
+  "ageMin",
+  "ageMax",
+  "salaryMin",
+  "salaryMax",
+];
+
+function HomePageInner() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const searchParams = useSearchParams();
+
+  const initialFilters = Object.fromEntries(
+    FILTER_KEYS.map((k) => [k, searchParams.get(k) ?? ""])
+  ) as Partial<CandidateFiltersState>;
 
   return (
     <div className="space-y-5">
-      {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-[22px] font-bold text-[#0D0B3E] tracking-tight">
@@ -31,8 +57,24 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* Table */}
-      <CandidateTable onSelectionChange={setSelectedIds} />
+      <CandidateTable
+        onSelectionChange={setSelectedIds}
+        initialFilters={initialFilters}
+      />
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center py-20 text-gray-400">
+          <Loader2 className="size-6 animate-spin" />
+        </div>
+      }
+    >
+      <HomePageInner />
+    </Suspense>
   );
 }

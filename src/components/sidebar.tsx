@@ -9,16 +9,18 @@ import {
   Briefcase,
   Mail,
   PenLine,
+  Upload,
   LayoutDashboard,
-  ChevronLeft,
 } from "lucide-react";
 
 const NAV_SECTIONS = [
   {
     title: "ניהול",
     items: [
+      { href: "/overview", label: "סקירה כללית", icon: LayoutDashboard },
       { href: "/", label: "מועמדים", icon: Users },
       { href: "/jobs", label: "משרות", icon: Briefcase },
+      { href: "/import", label: "ייבוא מ-CSV", icon: Upload },
     ],
   },
   {
