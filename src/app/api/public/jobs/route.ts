@@ -21,6 +21,7 @@ export async function GET() {
       { publicVisible: true, status: { $in: ["open", "filled"] } },
       {
         title: 1,
+        description: 1,
         sector: 1,
         workArea: 1,
         jobPermanence: 1,
