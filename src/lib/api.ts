@@ -228,12 +228,19 @@ export function createCampaign(data: {
 }
 
 // Jobs
+export type JobStatus = "draft" | "open" | "filled" | "closed";
+export type PaymentSchedule = "one-installment" | "two-installments";
+
 export interface JobListingData {
   _id: string;
+  title?: string;
+  description?: string;
+  jobNumber?: string;
   companyName: string;
   companyPhone?: string;
   sector?: string;
   workArea?: string;
+  jobType?: string;
   jobPermanence?: string;
   salary?: number;
   workDays?: string[];
@@ -244,7 +251,16 @@ export interface JobListingData {
   contactPhone?: string;
   contactEmail?: string;
   type?: string;
+  urgent?: boolean;
+  status?: JobStatus;
+  publicVisible?: boolean;
+  paymentSchedule?: PaymentSchedule;
+  firstPaymentDays?: 30 | 90;
+  placementsCount?: number;
+  source?: string;
   createdAt: string;
+  updatedAt?: string;
+  submissions?: SubmissionData[];
 }
 
 interface JobsListData {
@@ -254,7 +270,107 @@ interface JobsListData {
   totalPages: number;
 }
 
+export interface JobFilterOptions {
+  sectors: string[];
+  workAreas: string[];
+  jobPermanences: string[];
+  jobTypes: string[];
+  statuses: string[];
+}
+
+export type SubmissionStage =
+  | "proposed"
+  | "cv_sent"
+  | "interview"
+  | "hired"
+  | "first_payment"
+  | "second_payment"
+  | "rejected";
+
+export interface SubmissionData {
+  _id: string;
+  candidateId:
+    | string
+    | {
+        _id: string;
+        firstName?: string;
+        lastName?: string;
+        fullName?: string;
+        phone?: string;
+        email?: string;
+        cvUrl?: string;
+        city?: string;
+        sectors?: string[];
+      };
+  jobListingId: string;
+  stage: SubmissionStage;
+  proposedAt?: string;
+  cvSentAt?: string;
+  interviewAt?: string;
+  hiredAt?: string;
+  firstPaymentAt?: string;
+  secondPaymentAt?: string;
+  notes?: string;
+  rejectionReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export function getJobs(params?: Record<string, string>) {
   const query = params ? new URLSearchParams(params).toString() : "";
   return apiRequest<JobsListData>(`/api/jobs${query ? `?${query}` : ""}`);
+}
+
+export function getJob(id: string) {
+  return apiRequest<JobListingData>(`/api/jobs/${id}`);
+}
+
+export function createJob(data: Partial<JobListingData>) {
+  return apiRequest<JobListingData>("/api/jobs", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateJob(id: string, data: Partial<JobListingData>) {
+  return apiRequest<JobListingData>(`/api/jobs/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteJob(id: string) {
+  return apiRequest(`/api/jobs/${id}`, { method: "DELETE" });
+}
+
+export function getJobFilters() {
+  return apiRequest<JobFilterOptions>("/api/jobs/filters");
+}
+
+export function getJobSubmissions(jobId: string) {
+  return apiRequest<SubmissionData[]>(`/api/jobs/${jobId}/submissions`);
+}
+
+export function addSubmissions(jobId: string, candidateIds: string[]) {
+  return apiRequest<{ added: number; existed: number }>(
+    `/api/jobs/${jobId}/submissions`,
+    {
+      method: "POST",
+      body: JSON.stringify({ candidateIds }),
+    }
+  );
+}
+
+export function updateSubmissionStage(
+  submissionId: string,
+  data: { stage: SubmissionStage; notes?: string; rejectionReason?: string }
+) {
+  return apiRequest<SubmissionData>(`/api/submissions/${submissionId}/stage`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export function deleteSubmission(submissionId: string) {
+  return apiRequest(`/api/submissions/${submissionId}`, { method: "DELETE" });
 }

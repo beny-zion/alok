@@ -42,3 +42,52 @@ export const candidateFormSchema = z.object({
 });
 
 export type CandidateFormValues = z.infer<typeof candidateFormSchema>;
+
+export const jobFormSchema = z.object({
+  title: z.string().min(1, "כותרת המשרה חובה"),
+  description: z.string().optional(),
+  jobNumber: z.string().optional(),
+
+  companyName: z.string().min(1, "שם חברה חובה"),
+  companyPhone: z.string().optional(),
+  sector: z.string().optional(),
+  workArea: z.string().optional(),
+  jobType: z.string().optional(),
+  jobPermanence: z.string().optional(),
+  salary: z.string().optional(),
+  workDays: z.array(z.string()).optional(),
+  workHours: z.string().optional(),
+  contactName: z.string().optional(),
+  contactLastName: z.string().optional(),
+  contactPhone: z.string().optional(),
+  contactEmail: z
+    .string()
+    .refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), {
+      message: "כתובת אימייל לא תקינה",
+    })
+    .optional(),
+
+  urgent: z.boolean().optional(),
+  status: z.enum(["draft", "open", "filled", "closed"]).optional(),
+  publicVisible: z.boolean().optional(),
+  paymentSchedule: z.enum(["one-installment", "two-installments"]).optional(),
+  firstPaymentDays: z.union([z.literal(30), z.literal(90)]).optional(),
+});
+
+export type JobFormValues = z.infer<typeof jobFormSchema>;
+
+export const submissionStageSchema = z.object({
+  stage: z.enum([
+    "proposed",
+    "cv_sent",
+    "interview",
+    "hired",
+    "first_payment",
+    "second_payment",
+    "rejected",
+  ]),
+  notes: z.string().optional(),
+  rejectionReason: z.string().optional(),
+});
+
+export type SubmissionStageValues = z.infer<typeof submissionStageSchema>;

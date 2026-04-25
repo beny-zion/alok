@@ -87,6 +87,8 @@ export async function POST(request: NextRequest) {
       ...parsed,
       rawPayload: body,
       source: "elementor-webhook",
+      status: "open",
+      publicVisible: false,
     });
     console.log("Job listing saved:", jobListing._id);
 
