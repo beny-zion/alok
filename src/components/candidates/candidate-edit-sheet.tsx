@@ -19,6 +19,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FreeMultiCombobox } from "@/components/ui/free-multi-combobox";
+import { FreeCombobox } from "@/components/ui/free-combobox";
+import { CVUploader } from "@/components/candidates/cv-uploader";
 import {
   Select,
   SelectContent,
@@ -275,11 +277,13 @@ export function CandidateEditSheet({
                           name="city"
                           control={form.control}
                           render={({ field }) => (
-                            <NullableSelect
+                            <FreeCombobox
                               value={field.value}
                               onChange={field.onChange}
                               options={CITIES}
-                              placeholder="בחר עיר"
+                              placeholder="בחר עיר או הקלד עיר חדשה"
+                              addLabel="הוסף עיר"
+                              emptyLabel="אין ערים"
                             />
                           )}
                         />
@@ -515,21 +519,18 @@ export function CandidateEditSheet({
                       <Field label="הערות מערכת (additionalNotes)">
                         <Textarea rows={2} {...form.register("additionalNotes")} />
                       </Field>
-                      <Field label="קישור לקורות חיים">
-                        <div className="flex gap-2">
-                          <Input type="url" dir="ltr" {...form.register("cvUrl")} />
-                          {candidate?.cvUrl && (
-                            <a
-                              href={candidate.cvUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-sm text-[#2563EB] hover:underline px-2"
-                            >
-                              <ExternalLink className="size-3.5" />
-                              צפה
-                            </a>
+                      <Field label="קורות חיים">
+                        <Controller
+                          name="cvUrl"
+                          control={form.control}
+                          render={({ field }) => (
+                            <CVUploader
+                              value={field.value || ""}
+                              onChange={field.onChange}
+                              candidateId={candidate?._id}
+                            />
                           )}
-                        </div>
+                        />
                       </Field>
                     </div>
                   </Section>

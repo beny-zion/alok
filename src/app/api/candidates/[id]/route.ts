@@ -7,6 +7,7 @@ import {
   updateContactById,
 } from "@/lib/smoove";
 import { normalizePhone } from "@/lib/phone";
+import { del as deleteBlob } from "@vercel/blob";
 
 export async function GET(
   _request: NextRequest,
@@ -186,6 +187,15 @@ export async function DELETE(
     if (deleted.smooveContactId) {
       unsubscribeContact(deleted.smooveContactId).catch((err) =>
         console.error("Smoove unsubscribe failed for deleted candidate:", deleted.email, err)
+      );
+    }
+
+    // Best-effort cleanup of the candidate's CV file in Vercel Blob.
+    // Only delete files we own (cv/ prefix) — Elementor-uploaded URLs from
+    // WordPress live elsewhere and shouldn't be touched.
+    if (deleted.cvUrl?.includes("/cv/")) {
+      deleteBlob(deleted.cvUrl).catch((err) =>
+        console.error("CV blob delete failed:", deleted.cvUrl, err)
       );
     }
 
