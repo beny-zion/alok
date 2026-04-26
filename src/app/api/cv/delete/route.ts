@@ -1,26 +1,36 @@
-import { del } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
+import {
+  deleteWordPressMedia,
+  findMediaIdByUrl,
+  isWordPressMediaUrl,
+} from "@/lib/wordpress-cv";
 
-// Removes a CV from Vercel Blob. Called when the user replaces or clears
-// a CV from the candidate edit form. The DB cvUrl is updated by the
-// candidate PUT endpoint — this only deletes the underlying file.
+// Removes a CV from WordPress media library. Accepts either a `mediaId`
+// (preferred when the caller has it) or a `url` (we'll look up the id).
+// URLs that aren't on our WP install (legacy Elementor on a different site,
+// or test data) are reported as a no-op success.
 export async function POST(request: NextRequest) {
   try {
-    const { url } = await request.json();
-    if (!url || typeof url !== "string") {
+    const { url, mediaId } = await request.json();
+
+    let id: number | null =
+      typeof mediaId === "number" ? mediaId : null;
+    if (!id && typeof url === "string") {
+      if (!isWordPressMediaUrl(url)) {
+        // Not on our WP install — nothing to delete here, treat as success
+        return NextResponse.json({ success: true, data: { skipped: true } });
+      }
+      id = await findMediaIdByUrl(url);
+    }
+
+    if (!id) {
       return NextResponse.json(
-        { success: false, error: "url is required" },
+        { success: false, error: "Could not resolve WordPress media id" },
         { status: 400 }
       );
     }
-    // Only allow deletion of files in our blob store (cv/ prefix)
-    if (!url.includes("/cv/")) {
-      return NextResponse.json(
-        { success: false, error: "URL is not a CV blob" },
-        { status: 400 }
-      );
-    }
-    await del(url);
+
+    await deleteWordPressMedia(id);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("[cv/delete]", error);

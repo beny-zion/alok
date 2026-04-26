@@ -712,10 +712,20 @@ function NullableSelect({
       onValueChange={(v) => onChange(!v || v === "none" ? "" : String(v))}
     >
       <SelectTrigger>
-        <SelectValue placeholder={placeholder} />
+        {/* Base UI's Select.Value shows the raw value by default — without
+            this render fn the trigger shows "none" instead of a Hebrew label. */}
+        <SelectValue placeholder={placeholder}>
+          {(v: unknown) => {
+            const val = typeof v === "string" ? v : "";
+            if (!val || val === "none") {
+              return <span className="text-muted-foreground">{placeholder}</span>;
+            }
+            return val;
+          }}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="none">—</SelectItem>
+        <SelectItem value="none">— ללא —</SelectItem>
         {options.map((opt) => (
           <SelectItem key={opt} value={opt}>{opt}</SelectItem>
         ))}

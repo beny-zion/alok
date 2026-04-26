@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { upload } from "@vercel/blob/client";
 import { Button } from "@/components/ui/button";
 import {
   Upload,
@@ -14,10 +13,10 @@ import {
 import { toast } from "sonner";
 
 interface CVUploaderProps {
-  value: string; // current cvUrl
+  value: string; // current cvUrl (Drive webViewLink)
   onChange: (next: string) => void;
-  // Used to namespace the blob key so files are easy to associate with a
-  // candidate when browsing the Vercel Storage dashboard.
+  // Used to prefix the filename in Drive so files are easy to associate
+  // with a candidate when browsing the Drive folder.
   candidateId?: string;
   disabled?: boolean;
 }
@@ -25,15 +24,56 @@ interface CVUploaderProps {
 const MAX_BYTES = 10 * 1024 * 1024;
 const ACCEPTED = ".pdf,.doc,.docx,.jpg,.jpeg,.png";
 
+interface UploadResult {
+  id: string;
+  name: string;
+  webViewLink: string;
+  downloadLink: string;
+}
+
+async function uploadToServer(
+  file: File,
+  candidateId: string | undefined,
+  onProgress: (pct: number) => void
+): Promise<UploadResult> {
+  // Use XHR (not fetch) to get upload progress events
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const form = new FormData();
+    form.append("file", file);
+    if (candidateId) form.append("candidateId", candidateId);
+
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    });
+    xhr.addEventListener("load", () => {
+      try {
+        const res = JSON.parse(xhr.responseText) as {
+          success: boolean;
+          data?: UploadResult;
+          error?: string;
+        };
+        if (xhr.status >= 200 && xhr.status < 300 && res.success && res.data) {
+          resolve(res.data);
+        } else {
+          reject(new Error(res.error || `שגיאה ${xhr.status}`));
+        }
+      } catch {
+        reject(new Error(`תגובה לא תקינה מהשרת (${xhr.status})`));
+      }
+    });
+    xhr.addEventListener("error", () => reject(new Error("שגיאת רשת")));
+    xhr.addEventListener("abort", () => reject(new Error("בוטל")));
+    xhr.open("POST", "/api/cv/upload");
+    xhr.send(form);
+  });
+}
+
 export function CVUploader({ value, onChange, candidateId, disabled }: CVUploaderProps) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  const filename = value ? decodeURIComponent(value.split("/").pop() || "") : "";
-  // Strip the candidate-id prefix so the displayed name is the original file
-  const displayName = filename.replace(/^[a-f0-9]{6,}-/, "");
 
   const handleFile = async (file: File) => {
     if (file.size > MAX_BYTES) {
@@ -45,21 +85,10 @@ export function CVUploader({ value, onChange, candidateId, disabled }: CVUploade
     setProgress(0);
 
     try {
-      // Path: cv/{candidateId-or-new}/{timestamp}-{filename}
-      // Storing under cv/ keeps everything grouped in Vercel's Storage dashboard.
-      const idPart = candidateId || "new";
-      const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
-      const path = `cv/${idPart}/${Date.now()}-${safeName}`;
+      const result = await uploadToServer(file, candidateId, setProgress);
 
-      const blob = await upload(path, file, {
-        access: "public",
-        handleUploadUrl: "/api/cv/upload-token",
-        contentType: file.type,
-        onUploadProgress: (e) => setProgress(Math.round(e.percentage)),
-      });
-
-      // If replacing, delete the old file (best-effort, fire and forget)
-      if (value && value !== blob.url) {
+      // Replacing — best-effort delete the old file from Drive
+      if (value && value !== result.webViewLink) {
         fetch("/api/cv/delete", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -67,8 +96,8 @@ export function CVUploader({ value, onChange, candidateId, disabled }: CVUploade
         }).catch(() => {});
       }
 
-      onChange(blob.url);
-      toast.success("קורות החיים הועלו בהצלחה");
+      onChange(result.webViewLink);
+      toast.success("קורות החיים הועלו לדרייב בהצלחה");
     } catch (e) {
       const msg = (e as Error).message;
       console.error("CV upload failed:", e);
@@ -90,7 +119,7 @@ export function CVUploader({ value, onChange, candidateId, disabled }: CVUploade
         body: JSON.stringify({ url: value }),
       });
     } catch {
-      /* ignore — even if the delete fails the URL is cleared from the form */
+      /* form clears either way */
     }
     onChange("");
     toast.success("קובץ נמחק");
@@ -102,9 +131,7 @@ export function CVUploader({ value, onChange, candidateId, disabled }: CVUploade
       <div className="flex items-center gap-2 p-3 rounded-md border border-gray-200 bg-gray-50/50">
         <FileText className="size-5 text-[#2563EB] shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-900 truncate" dir="ltr">
-            {displayName || "קורות חיים"}
-          </p>
+          <p className="text-sm font-medium text-gray-900 truncate">קורות חיים</p>
           <a
             href={value}
             target="_blank"
@@ -112,7 +139,7 @@ export function CVUploader({ value, onChange, candidateId, disabled }: CVUploade
             className="inline-flex items-center gap-1 text-xs text-[#2563EB] hover:underline"
           >
             <ExternalLink className="size-3" />
-            פתח בלשונית חדשה
+            פתח ב-Google Drive
           </a>
         </div>
         <Button
@@ -176,7 +203,7 @@ export function CVUploader({ value, onChange, candidateId, disabled }: CVUploade
         {uploading ? (
           <>
             <Loader2 className="size-6 text-[#2563EB] animate-spin" />
-            <p className="text-sm text-gray-600">מעלה... {progress}%</p>
+            <p className="text-sm text-gray-600">מעלה לדרייב... {progress}%</p>
             <div className="w-full max-w-[200px] h-1 bg-gray-200 rounded-full overflow-hidden">
               <div
                 className="h-full bg-[#2563EB] transition-all"
@@ -205,12 +232,10 @@ export function CVUploader({ value, onChange, candidateId, disabled }: CVUploade
           onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
         />
       </div>
-      {value === "" && (
-        <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1">
-          <AlertCircle className="size-3" />
-          הקובץ יישמר ב-Vercel Blob תחת תיקיית cv/
-        </p>
-      )}
+      <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1">
+        <AlertCircle className="size-3" />
+        הקובץ יישמר בתיקיית Google Drive של AL
+      </p>
     </div>
   );
 }

@@ -6,3 +6,7 @@ temp_files/
 tsconfig.tsbuildinfo
 # Raw CSV source data — contains real candidate PII
 Sheets/
+# Google Cloud Service Account keys — NEVER commit
+*-service-account.json
+alok-crm-*.json
+google-credentials.json

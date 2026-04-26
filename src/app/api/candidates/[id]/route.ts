@@ -7,7 +7,11 @@ import {
   updateContactById,
 } from "@/lib/smoove";
 import { normalizePhone } from "@/lib/phone";
-import { del as deleteBlob } from "@vercel/blob";
+import {
+  deleteWordPressMedia,
+  findMediaIdByUrl,
+  isWordPressMediaUrl,
+} from "@/lib/wordpress-cv";
 
 export async function GET(
   _request: NextRequest,
@@ -190,13 +194,19 @@ export async function DELETE(
       );
     }
 
-    // Best-effort cleanup of the candidate's CV file in Vercel Blob.
-    // Only delete files we own (cv/ prefix) — Elementor-uploaded URLs from
-    // WordPress live elsewhere and shouldn't be touched.
-    if (deleted.cvUrl?.includes("/cv/")) {
-      deleteBlob(deleted.cvUrl).catch((err) =>
-        console.error("CV blob delete failed:", deleted.cvUrl, err)
-      );
+    // Best-effort cleanup of the candidate's CV file in WordPress media.
+    // Only delete URLs hosted on our WP install — legacy Elementor uploads
+    // on a different domain are left alone.
+    if (deleted.cvUrl && isWordPressMediaUrl(deleted.cvUrl)) {
+      findMediaIdByUrl(deleted.cvUrl)
+        .then((mediaId) => {
+          if (mediaId) {
+            return deleteWordPressMedia(mediaId);
+          }
+        })
+        .catch((err) =>
+          console.error("CV WP delete failed:", deleted.cvUrl, err)
+        );
     }
 
     return NextResponse.json({ success: true });
