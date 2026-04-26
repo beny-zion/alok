@@ -13,10 +13,10 @@ import {
 import { toast } from "sonner";
 
 interface CVUploaderProps {
-  value: string; // current cvUrl (Drive webViewLink)
+  value: string; // current cvUrl (WordPress media URL)
   onChange: (next: string) => void;
-  // Used to prefix the filename in Drive so files are easy to associate
-  // with a candidate when browsing the Drive folder.
+  // Used to prefix the filename in WP so files are easy to associate
+  // with a candidate when browsing WP Admin → Media.
   candidateId?: string;
   disabled?: boolean;
 }
@@ -87,7 +87,7 @@ export function CVUploader({ value, onChange, candidateId, disabled }: CVUploade
     try {
       const result = await uploadToServer(file, candidateId, setProgress);
 
-      // Replacing — best-effort delete the old file from Drive
+      // Replacing — best-effort delete the old file from WP media
       if (value && value !== result.webViewLink) {
         fetch("/api/cv/delete", {
           method: "POST",
@@ -97,7 +97,7 @@ export function CVUploader({ value, onChange, candidateId, disabled }: CVUploade
       }
 
       onChange(result.webViewLink);
-      toast.success("קורות החיים הועלו לדרייב בהצלחה");
+      toast.success("קורות החיים נשמרו במסד נתונים בהצלחה");
     } catch (e) {
       const msg = (e as Error).message;
       console.error("CV upload failed:", e);
@@ -139,7 +139,7 @@ export function CVUploader({ value, onChange, candidateId, disabled }: CVUploade
             className="inline-flex items-center gap-1 text-xs text-[#2563EB] hover:underline"
           >
             <ExternalLink className="size-3" />
-            פתח ב-Google Drive
+            פתח קובץ
           </a>
         </div>
         <Button
@@ -203,7 +203,7 @@ export function CVUploader({ value, onChange, candidateId, disabled }: CVUploade
         {uploading ? (
           <>
             <Loader2 className="size-6 text-[#2563EB] animate-spin" />
-            <p className="text-sm text-gray-600">מעלה לדרייב... {progress}%</p>
+            <p className="text-sm text-gray-600">שומר במסד נתונים... {progress}%</p>
             <div className="w-full max-w-[200px] h-1 bg-gray-200 rounded-full overflow-hidden">
               <div
                 className="h-full bg-[#2563EB] transition-all"
@@ -234,7 +234,7 @@ export function CVUploader({ value, onChange, candidateId, disabled }: CVUploade
       </div>
       <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1">
         <AlertCircle className="size-3" />
-        הקובץ יישמר בתיקיית Google Drive של AL
+        הקובץ יישמר במסד הנתונים של AL
       </p>
     </div>
   );
