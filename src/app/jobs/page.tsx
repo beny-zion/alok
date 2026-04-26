@@ -21,6 +21,25 @@ import { JobFilters, EMPTY_JOB_FILTERS, type JobFiltersState } from "@/component
 import { JobStatusPill } from "@/components/jobs/job-status-pill";
 import { JobEditSheet } from "@/components/jobs/job-edit-sheet";
 
+// Strip HTML tags and decode common entities. WP imports include &quot;, &amp;,
+// &#8217; etc. that arrive escaped in the title field.
+function cleanText(input?: string): string {
+  if (!input) return "";
+  let s = input.replace(/<[^>]+>/g, "");
+  // Numeric entities (&#XX; and &#xXX;)
+  s = s.replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
+  s = s.replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)));
+  // Named entities — only the common ones
+  s = s
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&");
+  return s.trim();
+}
+
 export default function JobsPage() {
   const [jobs, setJobs] = useState<JobListingData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -164,22 +183,26 @@ export default function JobsPage() {
                     onClick={() => handleRowClick(j)}
                     className="border-b border-gray-100 hover:bg-gray-50/70 cursor-pointer"
                   >
-                    <TableCell className="max-w-[260px]">
+                    <TableCell className="max-w-[280px]">
                       <div
-                        className={`text-sm font-medium ${
+                        title={cleanText(j.title) || j.sector || "—"}
+                        className={`text-sm font-medium truncate ${
                           isFilled ? "text-gray-400 line-through" : "text-gray-900"
                         }`}
                       >
-                        {j.title || j.sector || "—"}
+                        {cleanText(j.title) || j.sector || "—"}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 max-w-[180px]">
                         <div className="size-7 rounded-full bg-[#1B1464]/8 flex items-center justify-center shrink-0">
                           <Building2 className="size-3 text-[#1B1464]" />
                         </div>
-                        <span className="text-sm text-gray-700 truncate max-w-[160px]">
-                          {j.companyName}
+                        <span
+                          title={cleanText(j.companyName)}
+                          className="text-sm text-gray-700 truncate"
+                        >
+                          {cleanText(j.companyName)}
                         </span>
                       </div>
                     </TableCell>

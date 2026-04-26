@@ -2,6 +2,21 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { JobListing } from "@/models/job-listing.model";
 
+function cleanText(input?: string): string | undefined {
+  if (input == null) return undefined;
+  let s = String(input).replace(/<[^>]+>/g, "");
+  s = s.replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
+  s = s.replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)));
+  s = s
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&");
+  return s.trim();
+}
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
@@ -36,12 +51,20 @@ export async function GET() {
       .sort({ urgent: -1, createdAt: -1 })
       .lean();
 
+    // Clean HTML entities from text fields so WordPress doesn't double-escape
+    // them on sync (e.g. titles like `סוכני נדל&quot;ן`).
+    const cleanedJobs = jobs.map((j) => ({
+      ...j,
+      title: cleanText(j.title) ?? "",
+      description: cleanText(j.description),
+    }));
+
     return NextResponse.json(
       {
         success: true,
         data: {
-          jobs,
-          total: jobs.length,
+          jobs: cleanedJobs,
+          total: cleanedJobs.length,
           updatedAt: new Date().toISOString(),
         },
       },

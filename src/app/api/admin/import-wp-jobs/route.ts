@@ -18,6 +18,20 @@ interface WpJob {
   _embedded?: { "wp:term"?: WpTerm[][] };
 }
 
+function cleanText(input: string): string {
+  let s = input.replace(/<[^>]+>/g, "");
+  s = s.replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
+  s = s.replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)));
+  s = s
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&");
+  return s.trim();
+}
+
 function pickTerm(job: WpJob, taxonomy: string): string | undefined {
   const groups = job._embedded?.["wp:term"] || [];
   for (const group of groups) {
@@ -57,7 +71,7 @@ export async function POST(request: NextRequest) {
     let errors = 0;
 
     for (const wp of wpJobs) {
-      const title = wp.title.rendered.replace(/&#8217;/g, "'").replace(/&amp;/g, "&");
+      const title = cleanText(wp.title.rendered);
       try {
         const existing = await JobListing.findOne({ title });
         if (existing) {
