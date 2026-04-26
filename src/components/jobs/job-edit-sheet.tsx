@@ -23,10 +23,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Trash2, UserPlus } from "lucide-react";
+import { Loader2, Trash2, UserPlus, Globe, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { jobFormSchema, type JobFormValues } from "@/lib/validators";
-import { JOB_TYPES, JOB_PERMANENCE, SECTORS, CITIES } from "@/lib/constants";
+import { JOB_TYPES } from "@/lib/constants";
 import { FreeCombobox } from "@/components/ui/free-combobox";
 import {
   createJob,
@@ -83,6 +83,10 @@ export function JobEditSheet({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [sectorOptions, setSectorOptions] = useState<string[]>([]);
   const [workAreaOptions, setWorkAreaOptions] = useState<string[]>([]);
+  const [permanenceOptions, setPermanenceOptions] = useState<string[]>([]);
+  const [wpSectors, setWpSectors] = useState<string[]>([]);
+  const [wpWorkAreas, setWpWorkAreas] = useState<string[]>([]);
+  const [wpJobScopes, setWpJobScopes] = useState<string[]>([]);
 
   const form = useForm<JobFormValues>({
     resolver: zodResolver(jobFormSchema),
@@ -100,10 +104,14 @@ export function JobEditSheet({
     // so the user always sees what's already in use plus the freedom to add new ones.
     getJobFilters().then((res) => {
       if (res.success && res.data) {
-        const sectors = Array.from(new Set([...SECTORS, ...res.data.sectors]));
-        const areas = Array.from(new Set([...CITIES, ...res.data.workAreas]));
-        setSectorOptions(sectors.sort((a, b) => a.localeCompare(b, "he")));
-        setWorkAreaOptions(areas.sort((a, b) => a.localeCompare(b, "he")));
+        // Filters API already merges WP taxonomies with DB-distinct values,
+        // so res.data.sectors / workAreas / jobPermanences are the canonical lists.
+        setSectorOptions(res.data.sectors);
+        setWorkAreaOptions(res.data.workAreas);
+        setPermanenceOptions(res.data.jobPermanences);
+        setWpSectors(res.data.wpSectors ?? []);
+        setWpWorkAreas(res.data.wpWorkAreas ?? []);
+        setWpJobScopes(res.data.wpJobScopes ?? []);
       }
     });
   }, [open, job, form]);
@@ -220,121 +228,158 @@ export function JobEditSheet({
 
                 <div className="flex-1 overflow-y-auto px-5 py-4">
                   <TabsContent value="details" keepMounted>
-                    <div className="space-y-4">
-                      <Grid>
-                        <Field label="כותרת המשרה *" error={errors.title?.message}>
-                          <Input {...form.register("title")} placeholder="טלפנית למשרה מלאה" />
-                        </Field>
-                        <Field label="מספר משרה פנימי">
-                          <Input dir="ltr" {...form.register("jobNumber")} placeholder="#52" />
-                        </Field>
-                        <Field label="שם חברה *" error={errors.companyName?.message}>
-                          <Input {...form.register("companyName")} />
-                        </Field>
-                        <Field label="טלפון חברה">
-                          <Input dir="ltr" {...form.register("companyPhone")} />
-                        </Field>
-                        <Field label="תחום">
-                          <Controller
-                            name="sector"
-                            control={form.control}
-                            render={({ field }) => (
-                              <FreeCombobox
-                                value={field.value ?? ""}
-                                onChange={field.onChange}
-                                options={sectorOptions}
-                                placeholder="בחר או הוסף תחום חדש"
-                              />
-                            )}
-                          />
-                        </Field>
-                        <Field label="אזור">
-                          <Controller
-                            name="workArea"
-                            control={form.control}
-                            render={({ field }) => (
-                              <FreeCombobox
-                                value={field.value ?? ""}
-                                onChange={field.onChange}
-                                options={workAreaOptions}
-                                placeholder="בחר או הוסף אזור חדש"
-                              />
-                            )}
-                          />
-                        </Field>
-                        <Field label="היקף משרה">
-                          <Controller
-                            name="jobType"
-                            control={form.control}
-                            render={({ field }) => (
-                              <NullableSelect
-                                value={field.value ?? ""}
-                                onChange={field.onChange}
-                                options={[...JOB_TYPES]}
-                                placeholder="בחר"
-                              />
-                            )}
-                          />
-                        </Field>
-                        <Field label="קביעות">
-                          <Controller
-                            name="jobPermanence"
-                            control={form.control}
-                            render={({ field }) => (
-                              <NullableSelect
-                                value={field.value ?? ""}
-                                onChange={field.onChange}
-                                options={[...JOB_PERMANENCE]}
-                                placeholder="בחר"
-                              />
-                            )}
-                          />
-                        </Field>
-                        <Field label="שכר">
-                          <Input
-                            dir="ltr"
-                            type="number"
-                            {...form.register("salary")}
-                            placeholder="20000"
-                          />
-                        </Field>
-                        <Field label="שעות / משמרת">
-                          <Input {...form.register("workHours")} placeholder="08:00-17:00" />
-                        </Field>
-                      </Grid>
-
-                      <div className="border-t pt-3">
-                        <h3 className="text-sm font-semibold text-gray-700 mb-2">איש קשר במעסיק</h3>
+                    <div className="space-y-5">
+                      <PublicSection
+                        title="מוצג באתר הציבורי"
+                        subtitle="השדות האלה מסונכרנים לוורדפרס ונראים למחפשי עבודה"
+                      >
                         <Grid>
-                          <Field label="שם פרטי">
-                            <Input {...form.register("contactName")} />
+                          <Field
+                            label="כותרת המשרה *"
+                            error={errors.title?.message}
+                            badge="public"
+                          >
+                            <Input {...form.register("title")} placeholder="דרושות טלפניות" />
                           </Field>
-                          <Field label="שם משפחה">
-                            <Input {...form.register("contactLastName")} />
+                          <Field label="מספר משרה" badge="public">
+                            <Input dir="ltr" {...form.register("jobNumber")} placeholder="#52" />
                           </Field>
-                          <Field label="טלפון">
-                            <Input dir="ltr" {...form.register("contactPhone")} />
+                          <Field label="תחום" badge="public">
+                            <Controller
+                              name="sector"
+                              control={form.control}
+                              render={({ field }) => (
+                                <FreeCombobox
+                                  value={field.value ?? ""}
+                                  onChange={field.onChange}
+                                  options={sectorOptions}
+                                  placeholder="בחר או הוסף תחום חדש"
+                                />
+                              )}
+                            />
+                            <NewTermHint
+                              value={form.watch("sector")}
+                              wpList={wpSectors}
+                              taxonomyLabel="תחומי משרות"
+                            />
                           </Field>
-                          <Field label="אימייל" error={errors.contactEmail?.message}>
-                            <Input dir="ltr" type="email" {...form.register("contactEmail")} />
+                          <Field label="אזור" badge="public">
+                            <Controller
+                              name="workArea"
+                              control={form.control}
+                              render={({ field }) => (
+                                <FreeCombobox
+                                  value={field.value ?? ""}
+                                  onChange={field.onChange}
+                                  options={workAreaOptions}
+                                  placeholder="בחר או הוסף אזור חדש"
+                                />
+                              )}
+                            />
+                            <NewTermHint
+                              value={form.watch("workArea")}
+                              wpList={wpWorkAreas}
+                              taxonomyLabel="מקומות עבודה"
+                            />
+                          </Field>
+                          <Field label="היקף משרה" badge="public">
+                            <Controller
+                              name="jobPermanence"
+                              control={form.control}
+                              render={({ field }) => (
+                                <FreeCombobox
+                                  value={field.value ?? ""}
+                                  onChange={field.onChange}
+                                  options={permanenceOptions}
+                                  placeholder="משרה מלאה / חלקית / זמנית..."
+                                />
+                              )}
+                            />
+                            <NewTermHint
+                              value={form.watch("jobPermanence")}
+                              wpList={wpJobScopes}
+                              taxonomyLabel="היקפי-משרה"
+                            />
                           </Field>
                         </Grid>
-                      </div>
+                      </PublicSection>
+
+                      <InternalSection
+                        title="פנימי בלבד"
+                        subtitle="לא מוצג באתר. נשמר במערכת לשימוש פנימי"
+                      >
+                        <Grid>
+                          <Field label="שם חברה *" error={errors.companyName?.message}>
+                            <Input {...form.register("companyName")} />
+                          </Field>
+                          <Field label="טלפון חברה">
+                            <Input dir="ltr" {...form.register("companyPhone")} />
+                          </Field>
+                          <Field label="היקף נוסף (לא מסונכרן)">
+                            <Controller
+                              name="jobType"
+                              control={form.control}
+                              render={({ field }) => (
+                                <NullableSelect
+                                  value={field.value ?? ""}
+                                  onChange={field.onChange}
+                                  options={[...JOB_TYPES]}
+                                  placeholder="בחר"
+                                />
+                              )}
+                            />
+                          </Field>
+                          <Field label="שכר">
+                            <Input
+                              dir="ltr"
+                              type="number"
+                              {...form.register("salary")}
+                              placeholder="20000"
+                            />
+                          </Field>
+                          <Field label="שעות / משמרת">
+                            <Input {...form.register("workHours")} placeholder="08:00-17:00" />
+                          </Field>
+                        </Grid>
+
+                        <div className="border-t pt-3 mt-3">
+                          <h4 className="text-xs font-semibold text-gray-600 mb-2">איש קשר במעסיק</h4>
+                          <Grid>
+                            <Field label="שם פרטי">
+                              <Input {...form.register("contactName")} />
+                            </Field>
+                            <Field label="שם משפחה">
+                              <Input {...form.register("contactLastName")} />
+                            </Field>
+                            <Field label="טלפון">
+                              <Input dir="ltr" {...form.register("contactPhone")} />
+                            </Field>
+                            <Field label="אימייל" error={errors.contactEmail?.message}>
+                              <Input dir="ltr" type="email" {...form.register("contactEmail")} />
+                            </Field>
+                          </Grid>
+                        </div>
+                      </InternalSection>
                     </div>
                   </TabsContent>
 
                   <TabsContent value="description" keepMounted>
-                    <Field label="תיאור התפקיד והדרישות">
-                      <Textarea
-                        rows={14}
-                        {...form.register("description")}
-                        placeholder="תיאור המשרה, דרישות, הטבות..."
-                        className="font-mono text-sm"
-                      />
-                      <p className="text-[11px] text-gray-400 mt-1">
-                        ניתן להזין HTML בסיסי. התיאור לא נחשף ב-feed הציבורי כברירת מחדל.
-                      </p>
-                    </Field>
+                    <PublicSection
+                      title="מוצג באתר הציבורי"
+                      subtitle='הטקסט הזה נשמר בשדה "תוכן משרה" בוורדפרס ומופיע בעמוד המשרה'
+                    >
+                      <Field label="תיאור התפקיד והדרישות" badge="public">
+                        <Textarea
+                          rows={14}
+                          {...form.register("description")}
+                          placeholder="תיאור המשרה, דרישות, הטבות..."
+                          className="text-sm"
+                        />
+                        <p className="text-[11px] text-gray-400 mt-1">
+                          ניתן להזין HTML בסיסי (תגיות p, br, strong, ul, li).
+                        </p>
+                      </Field>
+                    </PublicSection>
                   </TabsContent>
 
                   {isEdit && (
@@ -584,17 +629,92 @@ function Field({
   label,
   error,
   children,
+  badge,
 }: {
   label: string;
   error?: string;
   children: React.ReactNode;
+  badge?: "public" | "internal";
 }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-sm">{label}</Label>
+      <div className="flex items-center gap-1.5">
+        <Label className="text-sm">{label}</Label>
+        {badge === "public" && (
+          <span title="מוצג באתר" className="text-emerald-600">
+            <Globe className="size-3" />
+          </span>
+        )}
+      </div>
       {children}
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
+  );
+}
+
+function PublicSection({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-emerald-200 bg-emerald-50/30 p-4">
+      <div className="flex items-start gap-2 mb-3">
+        <Globe className="size-4 text-emerald-600 mt-0.5 shrink-0" />
+        <div>
+          <h3 className="text-sm font-semibold text-emerald-900">{title}</h3>
+          {subtitle && <p className="text-[11px] text-emerald-700/70 mt-0.5">{subtitle}</p>}
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function InternalSection({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-gray-50/40 p-4">
+      <div className="flex items-start gap-2 mb-3">
+        <Lock className="size-4 text-gray-500 mt-0.5 shrink-0" />
+        <div>
+          <h3 className="text-sm font-semibold text-gray-700">{title}</h3>
+          {subtitle && <p className="text-[11px] text-gray-500 mt-0.5">{subtitle}</p>}
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// Warns when a free-add value will create a NEW term in the WP taxonomy.
+function NewTermHint({
+  value,
+  wpList,
+  taxonomyLabel,
+}: {
+  value?: string;
+  wpList: string[];
+  taxonomyLabel: string;
+}) {
+  if (!value) return null;
+  const exists = wpList.some((w) => w.toLowerCase() === value.toLowerCase());
+  if (exists || wpList.length === 0) return null;
+  return (
+    <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">
+      ⚠️ ערך חדש — ייווצר term חדש בטקסונומיה &quot;{taxonomyLabel}&quot; בוורדפרס
+    </p>
   );
 }
 

@@ -276,6 +276,9 @@ export interface JobFilterOptions {
   jobPermanences: string[];
   jobTypes: string[];
   statuses: string[];
+  wpSectors?: string[];
+  wpWorkAreas?: string[];
+  wpJobScopes?: string[];
 }
 
 export type SubmissionStage =
