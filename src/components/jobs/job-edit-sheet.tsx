@@ -437,11 +437,11 @@ export function JobEditSheet({
                           )}
                         />
                         <p className="text-[11px] text-gray-400 mt-1">
-                          {watchedStatus === "filled"
-                            ? "תוצג עם קו חוצה באתר הציבורי כדי ליצור FOMO"
-                            : watchedStatus === "draft" || watchedStatus === "closed"
-                            ? "לא תוצג באתר הציבורי"
-                            : "תוצג רגיל באתר הציבורי"}
+                          {watchedStatus === "filled" || watchedStatus === "closed"
+                            ? "אם פרסום באתר דלוק — תוצג עם קו חוצה (FOMO)"
+                            : watchedStatus === "draft"
+                            ? "טיוטה לא תוצג באתר גם אם פרסום דלוק"
+                            : "תוצג רגיל באתר אם פרסום דלוק"}
                         </p>
                       </Field>
 
@@ -451,6 +451,11 @@ export function JobEditSheet({
                         checked={!!watchedPublicVisible}
                         onChange={(v) => form.setValue("publicVisible", v)}
                       />
+                      {watchedPublicVisible && watchedStatus === "draft" && (
+                        <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded p-2 -mt-2">
+                          ⚠️ פרסום דלוק אבל הסטטוס &quot;טיוטה&quot; — המשרה לא תוצג באתר עד שתשני סטטוס.
+                        </div>
+                      )}
 
                       <ToggleField
                         label="משרה חמה / דחופה"

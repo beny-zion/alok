@@ -18,7 +18,9 @@ export async function GET() {
     await connectDB();
 
     const jobs = await JobListing.find(
-      { publicVisible: true, status: { $in: ["open", "filled"] } },
+      // Show every publicly-visible job EXCEPT drafts. "filled" and "closed" both
+      // surface (the WP CSS gives them the strikethrough/FOMO treatment).
+      { publicVisible: true, status: { $ne: "draft" } },
       {
         title: 1,
         description: 1,
