@@ -54,41 +54,65 @@ export async function POST(request: NextRequest) {
     const log: string[] = [];
     let created = 0;
     let skipped = 0;
+    let errors = 0;
 
     for (const wp of wpJobs) {
       const title = wp.title.rendered.replace(/&#8217;/g, "'").replace(/&amp;/g, "&");
-      const existing = await JobListing.findOne({ title });
-      if (existing) {
-        log.push(`SKIP "${title}"`);
-        skipped++;
-        continue;
-      }
+      try {
+        const existing = await JobListing.findOne({ title });
+        if (existing) {
+          log.push(`SKIP "${title}"`);
+          skipped++;
+          continue;
+        }
 
-      const meta = (wp.meta ?? {}) as Record<string, unknown>;
-      await JobListing.create({
-        title,
-        description: typeof meta.info_job === "string" ? meta.info_job : "",
-        jobNumber: typeof meta.job_number === "string" ? meta.job_number : undefined,
-        sector: pickTerm(wp, "job_category"),
-        workArea: pickTerm(wp, "job_place"),
-        jobPermanence: pickTerm(wp, "job-scope"),
-        companyName: "—",
-        status: "open",
-        publicVisible: true,
-        urgent: false,
-        placementsCount: 0,
-        paymentSchedule: "two-installments",
-        firstPaymentDays: 90,
-        source: "wordpress-import",
-        rawPayload: { wp_id: wp.id, wp_slug: wp.slug, imported_at: new Date().toISOString() },
-      });
-      log.push(`CREATED "${title}"`);
-      created++;
+        const meta = (wp.meta ?? {}) as Record<string, unknown>;
+        let jobNumber =
+          typeof meta.job_number === "string" && meta.job_number
+            ? meta.job_number
+            : undefined;
+        // Drop jobNumber if it would collide — better to let the user resolve
+        // duplicates manually than to fail the whole import.
+        if (jobNumber) {
+          const dup = await JobListing.findOne({ jobNumber });
+          if (dup) {
+            log.push(`WARN "${title}" — jobNumber ${jobNumber} already exists, dropping`);
+            jobNumber = undefined;
+          }
+        }
+
+        await JobListing.create({
+          title,
+          description: typeof meta.info_job === "string" ? meta.info_job : "",
+          jobNumber,
+          sector: pickTerm(wp, "job_category"),
+          workArea: pickTerm(wp, "job_place"),
+          jobPermanence: pickTerm(wp, "job-scope"),
+          companyName: "—",
+          status: "open",
+          publicVisible: true,
+          urgent: false,
+          placementsCount: 0,
+          paymentSchedule: "two-installments",
+          firstPaymentDays: 90,
+          source: "wordpress-import",
+          rawPayload: {
+            wp_id: wp.id,
+            wp_slug: wp.slug,
+            imported_at: new Date().toISOString(),
+          },
+        });
+        log.push(`CREATED "${title}"`);
+        created++;
+      } catch (err) {
+        log.push(`ERROR "${title}" — ${String(err).slice(0, 200)}`);
+        errors++;
+      }
     }
 
     return NextResponse.json({
       success: true,
-      data: { totalInWp: wpJobs.length, created, skipped, log },
+      data: { totalInWp: wpJobs.length, created, skipped, errors, log },
     });
   } catch (error) {
     console.error("Import error:", error);
