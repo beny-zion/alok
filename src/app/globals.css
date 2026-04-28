@@ -128,3 +128,75 @@
     @apply font-sans;
   }
 }
+
+/* TipTap editor visual styles — ensures bold/lists/headings/links render
+   inside the editor exactly as they will in the email. */
+.tiptap-content {
+  font-size: 15px;
+  line-height: 1.7;
+  color: #1f2937;
+}
+.tiptap-content p {
+  margin: 0 0 14px;
+}
+.tiptap-content h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1b1464;
+  margin: 0 0 12px;
+}
+.tiptap-content h3 {
+  font-size: 17px;
+  font-weight: 700;
+  color: #1b1464;
+  margin: 0 0 10px;
+}
+.tiptap-content strong,
+.tiptap-content b {
+  font-weight: 700;
+}
+.tiptap-content em,
+.tiptap-content i {
+  font-style: italic;
+}
+.tiptap-content u {
+  text-decoration: underline;
+}
+.tiptap-content a {
+  color: #f7941d;
+  text-decoration: underline;
+}
+.tiptap-content ul,
+.tiptap-content ol {
+  margin: 0 0 14px;
+  padding-right: 28px;
+  padding-left: 0;
+}
+.tiptap-content ul {
+  list-style: disc outside;
+}
+.tiptap-content ol {
+  list-style: decimal outside;
+}
+.tiptap-content li {
+  margin-bottom: 6px;
+  line-height: 1.6;
+}
+.tiptap-content li > p {
+  margin: 0;
+}
+.tiptap-content li::marker {
+  color: #1b1464;
+  font-weight: 600;
+}
+.tiptap-content:focus {
+  outline: none;
+}
+/* Empty editor placeholder hint */
+.tiptap-content p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+  float: right;
+  pointer-events: none;
+  height: 0;
+}

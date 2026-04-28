@@ -6,6 +6,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
+import Placeholder from "@tiptap/extension-placeholder";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +45,9 @@ export function TipTapEditor({ content, onChange }: TipTapEditorProps) {
       Underline,
       Link.configure({ openOnClick: false }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
+      Placeholder.configure({
+        placeholder: "כתבו כאן את תוכן המייל...",
+      }),
     ],
     content,
     onUpdate: ({ editor }) => {
@@ -51,7 +55,7 @@ export function TipTapEditor({ content, onChange }: TipTapEditorProps) {
     },
     editorProps: {
       attributes: {
-        class: "prose prose-sm max-w-none min-h-[300px] p-4 focus:outline-none",
+        class: "tiptap-content max-w-none min-h-[300px] p-4",
         dir: "rtl",
       },
     },
@@ -64,18 +68,24 @@ export function TipTapEditor({ content, onChange }: TipTapEditorProps) {
     active,
     children,
     className: extraClass,
+    title,
   }: {
     onClick: () => void;
     active?: boolean;
     children: React.ReactNode;
     className?: string;
+    title?: string;
   }) => (
     <Button
       type="button"
       variant={active ? "default" : "ghost"}
       size="sm"
       onClick={onClick}
-      className={`h-8 p-0 ${extraClass || "w-8"}`}
+      title={title}
+      aria-label={title}
+      className={`h-8 p-0 ${extraClass || "w-8"} ${
+        active ? "bg-[#1B1464] text-white hover:bg-[#0D0B3E] hover:text-white" : ""
+      }`}
     >
       {children}
     </Button>
@@ -156,18 +166,21 @@ export function TipTapEditor({ content, onChange }: TipTapEditorProps) {
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBold().run()}
           active={editor.isActive("bold")}
+          title="מודגש (Ctrl+B)"
         >
           <strong>B</strong>
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleItalic().run()}
           active={editor.isActive("italic")}
+          title="נטוי (Ctrl+I)"
         >
           <em>I</em>
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleUnderline().run()}
           active={editor.isActive("underline")}
+          title="קו תחתון (Ctrl+U)"
         >
           <u>U</u>
         </ToolbarButton>
@@ -175,12 +188,14 @@ export function TipTapEditor({ content, onChange }: TipTapEditorProps) {
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
           active={editor.isActive("heading", { level: 2 })}
+          title="כותרת גדולה"
         >
           H2
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
           active={editor.isActive("heading", { level: 3 })}
+          title="כותרת קטנה"
         >
           H3
         </ToolbarButton>
@@ -188,35 +203,44 @@ export function TipTapEditor({ content, onChange }: TipTapEditorProps) {
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           active={editor.isActive("bulletList")}
+          title="רשימה עם נקודות"
         >
           &bull;
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           active={editor.isActive("orderedList")}
+          title="רשימה ממוספרת"
         >
           1.
         </ToolbarButton>
         <div className="w-px bg-border mx-1 h-6" />
-        <ToolbarButton onClick={openLinkDialog} active={editor.isActive("link")}>
+        <ToolbarButton
+          onClick={openLinkDialog}
+          active={editor.isActive("link")}
+          title="הוספת קישור"
+        >
           🔗
         </ToolbarButton>
         <div className="w-px bg-border mx-1 h-6" />
         <ToolbarButton
           onClick={() => editor.chain().focus().setTextAlign("right").run()}
           active={editor.isActive({ textAlign: "right" })}
+          title="יישור לימין"
         >
           ⇒
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().setTextAlign("center").run()}
           active={editor.isActive({ textAlign: "center" })}
+          title="יישור למרכז"
         >
           ⇔
         </ToolbarButton>
         <ToolbarButton
           onClick={() => editor.chain().focus().setTextAlign("left").run()}
           active={editor.isActive({ textAlign: "left" })}
+          title="יישור לשמאל"
         >
           ⇐
         </ToolbarButton>
