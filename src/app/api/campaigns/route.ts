@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
         ? `https://${process.env.VERCEL_URL}`
         : "http://localhost:3000");
     const logoUrl = "https://alok.co.il/wp-content/uploads/2026/01/לוגו-AL-גיוס-עובדים-והשמה-2.png";
-    const brandedHtml = wrapInBrandedTemplate(htmlContent, { logoUrl });
+    const brandedHtml = wrapInBrandedTemplate(htmlContent, { logoUrl, siteUrl: baseUrl });
 
     // Replace merge tags — Smoove uses [[Field Name]] syntax (double brackets)
     const hasMergeTags = /\{\{(firstName|lastName|city|sectors)\}\}/.test(brandedHtml + subject);

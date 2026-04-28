@@ -6,11 +6,11 @@
  */
 export function wrapInBrandedTemplate(
   content: string,
-  options?: { logoUrl?: string }
+  options?: { logoUrl?: string; siteUrl?: string }
 ): string {
   const logoUrl = options?.logoUrl || "/logo_al_alok.png";
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://alok-crm.vercel.app").replace(/\/$/, "");
-  const devLogoUrl = `${appUrl}/beny-zion-dev.svg`;
+  const siteUrl = (options?.siteUrl || process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
+  const devLogoUrl = siteUrl ? `${siteUrl}/beny-zion-dev.svg` : "/beny-zion-dev.svg";
 
   return `<!DOCTYPE html>
 <html dir="rtl" lang="he" xmlns="http://www.w3.org/1999/xhtml">
