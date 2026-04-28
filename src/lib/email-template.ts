@@ -44,7 +44,9 @@ export function wrapInBrandedTemplate(
   <!-- Logo Section -->
   <tr>
     <td style="background-color:#ffffff;padding:28px 40px 20px;text-align:center;">
-      <img src="${logoUrl}" alt="AL גיוס עובדים והשמה" width="110" style="display:inline-block;max-width:110px;height:auto;" />
+      <a href="https://alok.co.il/" target="_blank" rel="noopener" style="text-decoration:none;border:0;outline:none;display:inline-block;">
+        <img src="${logoUrl}" alt="AL גיוס עובדים והשמה" width="110" style="display:inline-block;max-width:110px;height:auto;border:0;outline:none;text-decoration:none;" />
+      </a>
     </td>
   </tr>
 
@@ -69,8 +71,11 @@ export function wrapInBrandedTemplate(
   <tr>
     <td style="background-color:#1B1464;padding:28px 40px;text-align:center;">
       <p style="margin:0 0 8px;color:#F7941D;font-size:16px;font-weight:bold;line-height:1.4;">AL גיוס עובדים והשמה</p>
-      <p style="margin:0;color:rgba(255,255,255,0.55);font-size:12px;line-height:1.6;">
+      <p style="margin:0 0 10px;color:rgba(255,255,255,0.55);font-size:12px;line-height:1.6;">
         al086102600@gmail.com&nbsp;&nbsp;|&nbsp;&nbsp;053-3101050
+      </p>
+      <p style="margin:0;font-size:12px;line-height:1.6;">
+        <a href="https://alok.co.il/" target="_blank" rel="noopener" style="color:#F7941D;text-decoration:none;font-weight:600;">alok.co.il</a>
       </p>
     </td>
   </tr>
