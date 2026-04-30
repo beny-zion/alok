@@ -91,7 +91,6 @@ function ComposeWizard() {
 
   const previewHtml = wrapInBrandedTemplate(htmlContent, {
     logoUrl: "https://alok.co.il/wp-content/uploads/2026/01/לוגו-AL-גיוס-עובדים-והשמה-2.png",
-    siteUrl: typeof window !== "undefined" ? window.location.origin : undefined,
   });
 
   return (

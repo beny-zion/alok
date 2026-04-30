@@ -126,13 +126,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Wrap content in branded email template
-    const baseUrl =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      (process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : "http://localhost:3000");
     const logoUrl = "https://alok.co.il/wp-content/uploads/2026/01/לוגו-AL-גיוס-עובדים-והשמה-2.png";
-    const brandedHtml = wrapInBrandedTemplate(htmlContent, { logoUrl, siteUrl: baseUrl });
+    const brandedHtml = wrapInBrandedTemplate(htmlContent, { logoUrl });
 
     // Replace merge tags — Smoove uses [[Field Name]] syntax (double brackets)
     const hasMergeTags = /\{\{(firstName|lastName|city|sectors)\}\}/.test(brandedHtml + subject);

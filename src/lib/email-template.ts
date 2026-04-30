@@ -6,11 +6,9 @@
  */
 export function wrapInBrandedTemplate(
   content: string,
-  options?: { logoUrl?: string; siteUrl?: string }
+  options?: { logoUrl?: string }
 ): string {
   const logoUrl = options?.logoUrl || "/logo_al_alok.png";
-  const siteUrl = (options?.siteUrl || process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
-  const devLogoUrl = siteUrl ? `${siteUrl}/beny-zion-dev.svg` : "/beny-zion-dev.svg";
 
   return `<!DOCTYPE html>
 <html dir="rtl" lang="he" xmlns="http://www.w3.org/1999/xhtml">
@@ -147,14 +145,16 @@ export function wrapInBrandedTemplate(
       </table>
 
       <!-- Developed by credit -->
-      <a href="https://beny-zion-dev.vercel.app" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;color:rgba(255,255,255,0.45);">
+      <a href="https://beny-zion-dev.vercel.app" target="_blank" rel="noopener" style="text-decoration:none;display:inline-block;">
         <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:0 auto;">
           <tr>
-            <td style="vertical-align:middle;padding:0 6px 0 0;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-weight:500;color:rgba(255,255,255,0.45);">
+            <td style="vertical-align:middle;padding:0 8px 0 0;font-size:9px;letter-spacing:2px;text-transform:uppercase;font-weight:500;color:rgba(255,255,255,0.4);line-height:1;">
               Developed by
             </td>
             <td style="vertical-align:middle;padding:0;">
-              <img src="${devLogoUrl}" alt="Beny Zion Dev" width="22" height="22" style="display:block;width:22px;height:22px;border:0;outline:none;filter:drop-shadow(0 0 4px rgba(255,255,255,0.4));" />
+              <span style="display:inline-block;font-size:12px;font-weight:700;letter-spacing:0.6px;color:rgba(255,255,255,0.85);text-shadow:0 0 8px rgba(247,148,29,0.35);">
+                Beny<span style="color:#F7941D;">·</span>Zion
+              </span>
             </td>
           </tr>
         </table>
