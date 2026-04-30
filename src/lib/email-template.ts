@@ -122,17 +122,12 @@ export function wrapInBrandedTemplate(
         מחברים בין מועמדים איכותיים למעסיקים מובילים
       </p>
 
-      <!-- Contact pills -->
+      <!-- Contact pill -->
       <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:0 auto 14px;">
         <tr>
           <td style="padding:0 4px;">
-            <a href="mailto:al086102600@gmail.com" style="display:inline-block;color:#FFFFFF;text-decoration:none;font-size:12px;background:rgba(255,255,255,0.08);padding:7px 14px;border-radius:999px;border:1px solid rgba(247,148,29,0.3);">
+            <a href="mailto:al086102600@gmail.com" style="display:inline-block;color:#FFFFFF;text-decoration:none;font-size:12px;background:rgba(255,255,255,0.08);padding:8px 18px;border-radius:999px;border:1px solid rgba(247,148,29,0.3);">
               al086102600@gmail.com
-            </a>
-          </td>
-          <td style="padding:0 4px;">
-            <a href="tel:+972533101050" style="display:inline-block;color:#FFFFFF;text-decoration:none;font-size:12px;background:rgba(255,255,255,0.08);padding:7px 14px;border-radius:999px;border:1px solid rgba(247,148,29,0.3);">
-              053-3101050
             </a>
           </td>
         </tr>
